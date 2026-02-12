@@ -137,12 +137,41 @@ export default function CustomersPage() {
     fetchCustomers()
   }
 
-  const handleGmailSync = () => {
-    toast({
-      title: 'Gmail Sync Coming Soon',
-      description: 'This feature will automatically sync contacts from your Gmail inbox.',
-      variant: 'info',
-    })
+  const [syncing, setSyncing] = useState(false)
+
+  const handleGmailSync = async () => {
+    setSyncing(true)
+    try {
+      const res = await fetch('/api/gmail-sync', { method: 'POST' })
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Sync failed')
+      }
+
+      if (data.added > 0) {
+        toast({
+          title: 'Gmail Sync Complete',
+          description: `Added ${data.added} new contacts as leads.`,
+          variant: 'success',
+        })
+        fetchCustomers() // Refresh the list
+      } else {
+        toast({
+          title: 'Gmail Sync Complete',
+          description: data.message || 'No new contacts to add.',
+          variant: 'info',
+        })
+      }
+    } catch (error) {
+      toast({
+        title: 'Sync Failed',
+        description: error instanceof Error ? error.message : 'Failed to sync Gmail contacts.',
+        variant: 'error',
+      })
+    } finally {
+      setSyncing(false)
+    }
   }
 
   const renderCard = (customer: Customer) => (
@@ -179,9 +208,9 @@ export default function CustomersPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handleGmailSync}>
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Sync from Gmail
+          <Button variant="outline" onClick={handleGmailSync} disabled={syncing}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Syncing...' : 'Sync from Gmail'}
           </Button>
           <Button onClick={openNewDialog}>
             <Plus className="w-4 h-4 mr-2" />

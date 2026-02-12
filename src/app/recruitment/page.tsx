@@ -18,7 +18,8 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Plus, Trash2, Mail, Briefcase, Code } from 'lucide-react'
+import { Plus, Trash2, Mail, Briefcase, Code, Calendar, RefreshCw } from 'lucide-react'
+import { toast } from '@/components/ui/toast'
 
 const COLUMNS = [
   { id: 'lead', title: 'Lead', color: 'bg-gray-400' },
@@ -31,6 +32,7 @@ const COLUMNS = [
 export default function RecruitmentPage() {
   const [recruits, setRecruits] = useState<Recruit[]>([])
   const [loading, setLoading] = useState(true)
+  const [syncing, setSyncing] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingRecruit, setEditingRecruit] = useState<Recruit | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -57,6 +59,54 @@ export default function RecruitmentPage() {
   useEffect(() => {
     fetchRecruits()
   }, [fetchRecruits])
+
+  const handleCalendarSync = async () => {
+    setSyncing(true)
+    try {
+      const response = await fetch('/api/calendar-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fromDate: '2025-01-01',
+          toDate: new Date().toISOString().split('T')[0],
+        }),
+      })
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        if (data.added > 0) {
+          toast({
+            title: 'Calendar Sync Complete',
+            description: `Added ${data.added} new candidates from ${data.totalInterviewEvents} interview events.`,
+            variant: 'success',
+          })
+          fetchRecruits()
+        } else {
+          toast({
+            title: 'No New Candidates',
+            description: `Found ${data.totalInterviewEvents} interview events, but no new candidates to add.`,
+            variant: 'info',
+          })
+        }
+      } else {
+        toast({
+          title: 'Sync Failed',
+          description: data.error || 'Failed to sync calendar events.',
+          variant: 'error',
+        })
+      }
+    } catch (error) {
+      console.error('Calendar sync error:', error)
+      toast({
+        title: 'Sync Failed',
+        description: 'Failed to connect to calendar sync API.',
+        variant: 'error',
+      })
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   // Filter recruits based on search query
   const filteredRecruits = useMemo(() => {
@@ -199,10 +249,20 @@ export default function RecruitmentPage() {
             {recruits.length} total • {columns[4].items.length} hired
           </p>
         </div>
-        <Button onClick={openNewDialog}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add Candidate
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleCalendarSync} disabled={syncing}>
+            {syncing ? (
+              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Calendar className="w-4 h-4 mr-2" />
+            )}
+            {syncing ? 'Syncing...' : 'Sync from Calendar'}
+          </Button>
+          <Button onClick={openNewDialog}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Candidate
+          </Button>
+        </div>
       </div>
 
       <SearchBar
