@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { DropResult } from '@hello-pangea/dnd'
 import { supabase } from '@/lib/supabase'
 import { Competitor } from '@/lib/types'
 import { KanbanBoard } from '@/components/kanban-board'
+import { SearchBar } from '@/components/search-bar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -30,6 +31,7 @@ export default function CompetitorsPage() {
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingCompetitor, setEditingCompetitor] = useState<Competitor | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
   const [formData, setFormData] = useState({
     name: '',
     website: '',
@@ -54,9 +56,22 @@ export default function CompetitorsPage() {
     fetchCompetitors()
   }, [fetchCompetitors])
 
+  // Filter competitors based on search query
+  const filteredCompetitors = useMemo(() => {
+    if (!searchQuery.trim()) return competitors
+    
+    const query = searchQuery.toLowerCase()
+    return competitors.filter((c) => 
+      c.name?.toLowerCase().includes(query) ||
+      c.company?.toLowerCase().includes(query) ||
+      c.website?.toLowerCase().includes(query) ||
+      c.core_feature?.toLowerCase().includes(query)
+    )
+  }, [competitors, searchQuery])
+
   const columns = COLUMNS.map((col) => ({
     ...col,
-    items: competitors.filter((c) => c.status === col.id),
+    items: filteredCompetitors.filter((c) => c.status === col.id),
   }))
 
   const handleDragEnd = async (result: DropResult) => {
@@ -174,10 +189,6 @@ export default function CompetitorsPage() {
     </div>
   )
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading...</div>
-  }
-
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -193,11 +204,26 @@ export default function CompetitorsPage() {
         </Button>
       </div>
 
+      <SearchBar
+        value={searchQuery}
+        onChange={setSearchQuery}
+        placeholder="Search by name, company, or website..."
+        className="mb-6 max-w-md"
+      />
+
+      {searchQuery && filteredCompetitors.length !== competitors.length && (
+        <p className="text-sm text-gray-500 mb-4">
+          Showing {filteredCompetitors.length} of {competitors.length} competitors
+        </p>
+      )}
+
       <KanbanBoard
         columns={columns}
         onDragEnd={handleDragEnd}
         renderCard={renderCard}
         onCardClick={openEditDialog}
+        loading={loading}
+        emptyMessage="Add competitors to track your market landscape."
       />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { DropResult } from '@hello-pangea/dnd'
 import { supabase } from '@/lib/supabase'
 import { Recruit } from '@/lib/types'
 import { KanbanBoard } from '@/components/kanban-board'
+import { SearchBar } from '@/components/search-bar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -32,6 +33,7 @@ export default function RecruitmentPage() {
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingRecruit, setEditingRecruit] = useState<Recruit | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -56,9 +58,22 @@ export default function RecruitmentPage() {
     fetchRecruits()
   }, [fetchRecruits])
 
+  // Filter recruits based on search query
+  const filteredRecruits = useMemo(() => {
+    if (!searchQuery.trim()) return recruits
+    
+    const query = searchQuery.toLowerCase()
+    return recruits.filter((r) => 
+      r.name?.toLowerCase().includes(query) ||
+      r.email?.toLowerCase().includes(query) ||
+      r.position?.toLowerCase().includes(query) ||
+      r.role?.toLowerCase().includes(query)
+    )
+  }, [recruits, searchQuery])
+
   const columns = COLUMNS.map((col) => ({
     ...col,
-    items: recruits.filter((r) => r.stage === col.id),
+    items: filteredRecruits.filter((r) => r.stage === col.id),
   }))
 
   const handleDragEnd = async (result: DropResult) => {
@@ -175,10 +190,6 @@ export default function RecruitmentPage() {
     </div>
   )
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading...</div>
-  }
-
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -194,11 +205,26 @@ export default function RecruitmentPage() {
         </Button>
       </div>
 
+      <SearchBar
+        value={searchQuery}
+        onChange={setSearchQuery}
+        placeholder="Search by name, email, or position..."
+        className="mb-6 max-w-md"
+      />
+
+      {searchQuery && filteredRecruits.length !== recruits.length && (
+        <p className="text-sm text-gray-500 mb-4">
+          Showing {filteredRecruits.length} of {recruits.length} candidates
+        </p>
+      )}
+
       <KanbanBoard
         columns={columns}
         onDragEnd={handleDragEnd}
         renderCard={renderCard}
         onCardClick={openEditDialog}
+        loading={loading}
+        emptyMessage="Add your first candidate to start building your hiring pipeline."
       />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

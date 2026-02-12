@@ -1,12 +1,14 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { DropResult } from '@hello-pangea/dnd'
 import { supabase } from '@/lib/supabase'
 import { Customer } from '@/lib/types'
 import { KanbanBoard } from '@/components/kanban-board'
+import { SearchBar } from '@/components/search-bar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { toast } from '@/components/ui/toast'
 import {
   Dialog,
   DialogContent,
@@ -16,7 +18,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Plus, Trash2, DollarSign, Building, Mail } from 'lucide-react'
+import { Plus, Trash2, DollarSign, Building, Mail, RefreshCw } from 'lucide-react'
 
 const COLUMNS = [
   { id: 'lead', title: 'Lead', color: 'bg-gray-400' },
@@ -31,6 +33,7 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -52,9 +55,21 @@ export default function CustomersPage() {
     fetchCustomers()
   }, [fetchCustomers])
 
+  // Filter customers based on search query
+  const filteredCustomers = useMemo(() => {
+    if (!searchQuery.trim()) return customers
+    
+    const query = searchQuery.toLowerCase()
+    return customers.filter((c) => 
+      c.name?.toLowerCase().includes(query) ||
+      c.company?.toLowerCase().includes(query) ||
+      c.email?.toLowerCase().includes(query)
+    )
+  }, [customers, searchQuery])
+
   const columns = COLUMNS.map((col) => ({
     ...col,
-    items: customers.filter((c) => c.status === col.id),
+    items: filteredCustomers.filter((c) => c.status === col.id),
   }))
 
   const totalMRR = customers
@@ -122,6 +137,14 @@ export default function CustomersPage() {
     fetchCustomers()
   }
 
+  const handleGmailSync = () => {
+    toast({
+      title: 'Gmail Sync Coming Soon',
+      description: 'This feature will automatically sync contacts from your Gmail inbox.',
+      variant: 'info',
+    })
+  }
+
   const renderCard = (customer: Customer) => (
     <div className="space-y-2">
       <div className="font-medium text-sm">{customer.name}</div>
@@ -146,10 +169,6 @@ export default function CustomersPage() {
     </div>
   )
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading...</div>
-  }
-
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -159,17 +178,38 @@ export default function CustomersPage() {
             {customers.length} total • ${totalMRR.toLocaleString()} MRR from won deals
           </p>
         </div>
-        <Button onClick={openNewDialog}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add Customer
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleGmailSync}>
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Sync from Gmail
+          </Button>
+          <Button onClick={openNewDialog}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Customer
+          </Button>
+        </div>
       </div>
+
+      <SearchBar
+        value={searchQuery}
+        onChange={setSearchQuery}
+        placeholder="Search by name, company, or email..."
+        className="mb-6 max-w-md"
+      />
+
+      {searchQuery && filteredCustomers.length !== customers.length && (
+        <p className="text-sm text-gray-500 mb-4">
+          Showing {filteredCustomers.length} of {customers.length} customers
+        </p>
+      )}
 
       <KanbanBoard
         columns={columns}
         onDragEnd={handleDragEnd}
         renderCard={renderCard}
         onCardClick={openEditDialog}
+        loading={loading}
+        emptyMessage="Add your first customer to start tracking your sales pipeline."
       />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
