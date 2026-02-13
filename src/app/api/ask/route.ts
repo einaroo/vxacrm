@@ -413,7 +413,7 @@ async function handlePipelineByValue(filters: QueryFilters): Promise<AskResponse
     type: 'pipeline_by_value',
     title: '💰 High-Value Deals',
     summary: `Found ${customers.length} deal${customers.length !== 1 ? 's' : ''} worth $${minValue.toLocaleString()}+/mo. Combined value: $${totalValue.toLocaleString()}/mo.`,
-    data: customers as Record<string, unknown>[],
+    data: customers.map(c => ({ ...c })),
     insights: [
       `Top deal: ${customers[0]?.company || 'N/A'} at $${(customers[0]?.mrr_value || 0).toLocaleString()}/mo`,
       `${customers.filter(c => c.status === 'negotiating').length} are in negotiating stage`,
@@ -458,7 +458,7 @@ async function handlePipelineByStage(filters: QueryFilters): Promise<AskResponse
     type: 'pipeline_by_stage',
     title: `${stageEmoji[stage] || '📊'} ${stage.charAt(0).toUpperCase() + stage.slice(1)} Stage`,
     summary: `${customers.length} customer${customers.length !== 1 ? 's' : ''} in ${stage} stage. Total value: $${totalValue.toLocaleString()}/mo.`,
-    data: customers as Record<string, unknown>[],
+    data: customers.map(c => ({ ...c })),
     insights: [
       customers.length > 0 ? `Average deal size: $${Math.round(totalValue / customers.length).toLocaleString()}/mo` : 'No deals in this stage',
     ],
@@ -560,7 +560,7 @@ async function handlePipelineOverview(): Promise<AskResponse> {
     type: 'pipeline_overview',
     title: '📈 Pipeline Overview',
     summary: `You have ${customers.length} active deal${customers.length !== 1 ? 's' : ''} worth $${totalValue.toLocaleString()}/mo in your pipeline.`,
-    data: customers as Record<string, unknown>[],
+    data: customers.map(c => ({ ...c })),
     insights: [
       'Showing most recently updated deals',
     ],
@@ -724,7 +724,7 @@ async function handleRecruitment(filters: QueryFilters): Promise<AskResponse> {
     type: filters.stage ? 'recruitment_by_stage' : 'recruitment',
     title: `👥 Candidates${stageLabel}`,
     summary: `${recruits.length} candidate${recruits.length !== 1 ? 's' : ''}${stageLabel}.`,
-    data: recruits as Record<string, unknown>[],
+    data: recruits.map(r => ({ ...r })),
     insights: [
       recruits.length > 0 
         ? `${recruits.filter(r => r.technical_role).length} technical roles`
@@ -765,7 +765,7 @@ async function handleCompetitorIntel(filters: QueryFilters): Promise<AskResponse
     type: 'competitor_intel',
     title: '🎯 Competitor Intelligence',
     summary: `Tracking ${competitors.length} competitor${competitors.length !== 1 ? 's' : ''}.`,
-    data: competitors as Record<string, unknown>[],
+    data: competitors.map(c => ({ ...c })),
     insights: [
       `${competitors.filter(c => c.status === 'bigplayer').length} major players`,
       `${competitors.filter(c => c.status === 'traction').length} gaining traction`,
@@ -840,7 +840,7 @@ async function handleCustomerHealth(filters: QueryFilters): Promise<AskResponse>
     type: 'customer_health',
     title: '⚠️ Customer Health Alert',
     summary: `${customers.length} customer${customers.length !== 1 ? 's' : ''} haven't been contacted in ${days}+ days. At-risk MRR: $${totalValue.toLocaleString()}/mo.`,
-    data: customers as Record<string, unknown>[],
+    data: customers.map(c => ({ ...c })),
     insights: [
       'Regular check-ins prevent churn',
       'Longest untouched customer listed first',
