@@ -1,18 +1,20 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, Sparkles, Loader2, X, Users, Briefcase, Calendar, Target } from 'lucide-react'
+import { Send, Sparkles, Loader2, X, Users, Briefcase, Target, Search, Plus, Check } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 
 interface AskResponse {
-  type: 'pipeline' | 'recruitment' | 'meeting' | 'competitor' | 'general'
+  type: 'pipeline' | 'recruitment' | 'meeting' | 'competitor' | 'prospecting' | 'general' | string
   title: string
   summary: string
   data?: Record<string, unknown>[]
   suggestions?: string[]
+  suggestedActions?: string[]
+  insights?: string[]
 }
 
 interface Message {
@@ -26,7 +28,7 @@ interface Message {
 const quickActions = [
   { label: 'Pipeline overview', query: 'Show me the pipeline', icon: Target },
   { label: 'Open candidates', query: 'Show recruitment candidates', icon: Users },
-  { label: 'Meeting prep', query: 'Prepare me for my next meeting', icon: Calendar },
+  { label: 'Find companies', query: 'Find AI marketing companies', icon: Search },
   { label: 'Competitor intel', query: 'Show competitor analysis', icon: Briefcase },
 ]
 
@@ -206,9 +208,9 @@ export function AskVXA({ className }: { className?: string }) {
                 )}
 
                 {/* Suggestion chips */}
-                {message.response?.suggestions && (
+                {(message.response?.suggestions || message.response?.suggestedActions) && (
                   <div className="flex flex-wrap gap-1 mt-2">
-                    {message.response.suggestions.map((suggestion) => (
+                    {(message.response.suggestions || message.response.suggestedActions || []).map((suggestion) => (
                       <button
                         key={suggestion}
                         onClick={() => handleQuickAction(suggestion)}
@@ -259,10 +261,51 @@ export function AskVXA({ className }: { className?: string }) {
 }
 
 function ResponseCard({ response }: { response: AskResponse }) {
-  const maxItems = 3
+  const maxItems = response.type === 'prospecting' ? 6 : 3
   const data = response.data || []
   const displayData = data.slice(0, maxItems)
   const remaining = data.length - maxItems
+  const [addedItems, setAddedItems] = useState<Set<number>>(new Set())
+  const [addingItems, setAddingItems] = useState<Set<number>>(new Set())
+
+  const handleAddCompany = async (item: Record<string, unknown>, index: number) => {
+    if (addedItems.has(index) || addingItems.has(index)) return
+
+    setAddingItems(prev => new Set(prev).add(index))
+
+    try {
+      const res = await fetch('/api/companies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          company: item.company,
+          website: item.website,
+          description: item.description,
+          source: 'web_search',
+        }),
+      })
+
+      if (res.ok) {
+        setAddedItems(prev => new Set(prev).add(index))
+      } else {
+        const data = await res.json()
+        if (res.status === 409) {
+          // Already exists
+          setAddedItems(prev => new Set(prev).add(index))
+        } else {
+          console.error('Failed to add company:', data.error)
+        }
+      }
+    } catch (error) {
+      console.error('Error adding company:', error)
+    } finally {
+      setAddingItems(prev => {
+        const next = new Set(prev)
+        next.delete(index)
+        return next
+      })
+    }
+  }
 
   return (
     <div className="bg-white border rounded-lg overflow-hidden">
@@ -272,7 +315,16 @@ function ResponseCard({ response }: { response: AskResponse }) {
       <div className="divide-y">
         {displayData.map((item, i) => (
           <div key={i} className="px-3 py-2 text-sm">
-            {renderDataItem(response.type, item)}
+            {item.addable ? (
+              <ProspectItem 
+                item={item} 
+                isAdded={addedItems.has(i)}
+                isAdding={addingItems.has(i)}
+                onAdd={() => handleAddCompany(item, i)}
+              />
+            ) : (
+              renderDataItem(response.type, item)
+            )}
           </div>
         ))}
       </div>
@@ -281,6 +333,56 @@ function ResponseCard({ response }: { response: AskResponse }) {
           +{remaining} more
         </div>
       )}
+    </div>
+  )
+}
+
+function ProspectItem({ 
+  item, 
+  isAdded, 
+  isAdding, 
+  onAdd 
+}: { 
+  item: Record<string, unknown>
+  isAdded: boolean
+  isAdding: boolean
+  onAdd: () => void
+}) {
+  const description = item.description ? String(item.description) : null
+  
+  return (
+    <div className="flex items-start gap-2">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="font-medium truncate">{String(item.company || 'Unknown')}</span>
+          <span className="text-xs text-gray-400 truncate">{String(item.domain || '')}</span>
+        </div>
+        {description && (
+          <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+            {description}
+          </p>
+        )}
+      </div>
+      <button
+        onClick={onAdd}
+        disabled={isAdded || isAdding}
+        className={cn(
+          'flex-shrink-0 p-1.5 rounded-md transition-colors',
+          isAdded 
+            ? 'bg-green-100 text-green-600' 
+            : isAdding
+            ? 'bg-gray-100 text-gray-400'
+            : 'bg-violet-100 text-violet-600 hover:bg-violet-200'
+        )}
+      >
+        {isAdded ? (
+          <Check className="h-4 w-4" />
+        ) : isAdding ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Plus className="h-4 w-4" />
+        )}
+      </button>
     </div>
   )
 }

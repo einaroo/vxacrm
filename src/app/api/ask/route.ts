@@ -207,12 +207,15 @@ const INTENT_PATTERNS: Record<IntentType, RegExp[]> = {
     /what\s+are\s+.+\s+doing/i,
   ],
   prospecting: [
-    /find\s+(companies|prospects|leads)/i,
-    /search\s+for/i,
+    /find\s+(companies|prospects|leads|businesses)/i,
+    /search\s+(for|companies|web)/i,
     /looking\s+for/i,
     /similar\s+to/i,
-    /companies\s+(like|in|that)/i,
+    /companies\s+(like|in|that|doing)/i,
     /prospect/i,
+    /web\s*search/i,
+    /add\s+companies?\s+from/i,
+    /find\s+.+\s+companies/i,
   ],
   customer_health: [
     /health/i,
@@ -781,24 +784,101 @@ async function handleCompetitorIntel(filters: QueryFilters): Promise<AskResponse
 
 /**
  * Handle prospecting queries (web search)
- * TODO: Integrate with web search API
+ * Searches the web for companies matching the query
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function handleProspecting(_filters: QueryFilters): Promise<AskResponse> {
-  // TODO: Use filters when web search is integrated
-  return {
-    type: 'prospecting',
-    title: '🔍 Prospecting',
-    summary: 'Web search for prospects is coming soon! This feature will allow you to find companies matching your criteria directly from VXA.',
-    insights: [
-      'This will integrate with web search APIs',
-      'You\'ll be able to search by industry, location, and company size',
-    ],
-    suggestedActions: [
-      'Check your existing pipeline',
-      'Review leads that need follow-up',
-      'Add prospects manually for now',
-    ],
+async function handleProspecting(filters: QueryFilters, originalQuery: string): Promise<AskResponse> {
+  // Extract search terms from the query
+  const searchQuery = filters.searchQuery || 
+    originalQuery
+      .replace(/find|search|looking for|companies|company|prospects?|like/gi, '')
+      .trim() ||
+    'B2B SaaS companies'
+
+  try {
+    const braveApiKey = process.env.BRAVE_API_KEY
+    
+    let results: Array<{
+      title: string
+      url: string
+      description: string
+      domain: string
+    }> = []
+
+    if (braveApiKey) {
+      // Use Brave Search API
+      const searchUrl = new URL('https://api.search.brave.com/res/v1/web/search')
+      searchUrl.searchParams.set('q', searchQuery)
+      searchUrl.searchParams.set('count', '8')
+
+      const response = await fetch(searchUrl.toString(), {
+        headers: {
+          'Accept': 'application/json',
+          'X-Subscription-Token': braveApiKey,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        results = (data.web?.results || []).map((r: {
+          title: string
+          url: string
+          description: string
+        }) => ({
+          title: r.title,
+          url: r.url,
+          description: r.description,
+          domain: new URL(r.url).hostname.replace('www.', ''),
+        }))
+      }
+    }
+
+    // If no API key or no results, return helpful message
+    if (results.length === 0) {
+      return {
+        type: 'prospecting',
+        title: '🔍 Company Search',
+        summary: `No search results for "${searchQuery}". Try a more specific search or add companies manually.`,
+        insights: [
+          braveApiKey ? 'Search returned no results' : 'BRAVE_API_KEY not configured for web search',
+          'You can still add companies manually',
+        ],
+        suggestedActions: [
+          'Search for "AI marketing companies"',
+          'Search for "SaaS companies Stockholm"',
+          'Add company manually',
+        ],
+      }
+    }
+
+    return {
+      type: 'prospecting',
+      title: `🔍 Found ${results.length} Companies`,
+      summary: `Search results for "${searchQuery}". Click + to add any company to your CRM.`,
+      data: results.map(r => ({
+        company: r.title.split(' - ')[0].split(' | ')[0].trim(), // Clean up title
+        website: r.url,
+        description: r.description,
+        domain: r.domain,
+        addable: true, // Flag for UI to show add button
+      })),
+      insights: [
+        'Click the + button to add a company as a lead',
+        'Added companies will appear in your pipeline',
+      ],
+      suggestedActions: [
+        'Show my pipeline',
+        'Search for more companies',
+      ],
+      meta: { totalCount: results.length },
+    }
+  } catch (error) {
+    console.error('Prospecting search error:', error)
+    return {
+      type: 'prospecting',
+      title: '❌ Search Failed',
+      summary: 'Unable to search for companies right now. Please try again.',
+      suggestedActions: ['Try again', 'Add company manually'],
+    }
   }
 }
 
@@ -924,7 +1004,7 @@ async function processQuery(query: string): Promise<AskResponse> {
     case 'competitor_intel':
       return handleCompetitorIntel(filters)
     case 'prospecting':
-      return handleProspecting(filters)
+      return handleProspecting(filters, query)
     case 'customer_health':
       return handleCustomerHealth(filters)
     default:
