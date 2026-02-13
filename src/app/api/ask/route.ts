@@ -783,7 +783,7 @@ async function handleCompetitorIntel(filters: QueryFilters): Promise<AskResponse
  * Handle prospecting queries (web search)
  * TODO: Integrate with web search API
  */
-async function handleProspecting(filters: QueryFilters): Promise<AskResponse> {
+async function handleProspecting(_filters: QueryFilters): Promise<AskResponse> {
   return {
     type: 'prospecting',
     title: '🔍 Prospecting',
