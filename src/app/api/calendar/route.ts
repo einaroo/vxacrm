@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { google } from 'googleapis'
 
+// Force dynamic rendering - this route fetches real-time calendar data
+export const dynamic = 'force-dynamic'
+
 interface CalendarAttendee {
   email: string
   displayName?: string
