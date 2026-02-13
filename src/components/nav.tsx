@@ -3,13 +3,13 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { Users, Target, UserPlus, MessageSquare } from 'lucide-react'
+import { Users, Target, UserPlus, Lightbulb } from 'lucide-react'
 
 const navItems = [
   { href: '/customers', label: 'Customers', icon: Users },
   { href: '/competitors', label: 'Competitors', icon: Target },
   { href: '/recruitment', label: 'Recruitment', icon: UserPlus },
-  { href: '/interviews', label: 'Interviews', icon: MessageSquare },
+  { href: '/interviews', label: 'Experts', icon: Lightbulb },
 ]
 
 export function Nav() {

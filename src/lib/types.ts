@@ -40,23 +40,33 @@ export interface Recruit {
   user_id: string | null
 }
 
-export interface Interview {
+export interface Expert {
   id: string
   customer_id: string | null
-  customer_name: string | null
-  date: string | null
-  notes: string | null
+  customer_name: string | null  // Expert name
+  company: string | null
+  expertise_area: string | null
+  contact_email: string | null
+  status: 'identified' | 'contacted' | 'engaged' | 'active' | 'inactive' | null
+  date: string | null  // Last contact date
+  notes: string | null  // Insights/notes
   created_at: string
   updated_at: string
 }
 
-export interface InterviewQuestion {
+// Alias for backward compatibility with database table name
+export type Interview = Expert
+
+export interface ExpertInsight {
   id: string
-  interview_id: string
+  interview_id: string  // References expert id (table still named interview_questions)
   question: string
   answer: string | null
   created_at: string
 }
+
+// Alias for backward compatibility
+export type InterviewQuestion = ExpertInsight
 
 export type ColumnConfig<T> = {
   id: string
