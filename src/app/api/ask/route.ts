@@ -207,15 +207,18 @@ const INTENT_PATTERNS: Record<IntentType, RegExp[]> = {
     /what\s+are\s+.+\s+doing/i,
   ],
   prospecting: [
-    /find\s+(companies|prospects|leads|businesses)/i,
+    /find\s+(companies|prospects|leads|businesses|brands|startups)/i,
+    /find\s+.*(companies|brands|startups|businesses)/i,
+    /find\s+(the\s+)?(fastest|top|best|biggest|growing)/i,
     /search\s+(for|companies|web)/i,
     /looking\s+for/i,
     /similar\s+to/i,
     /companies\s+(like|in|that|doing)/i,
+    /(d2c|b2b|b2c|saas)\s+(brands?|companies|startups)/i,
+    /brands?\s+in\s+/i,
     /prospect/i,
     /web\s*search/i,
     /add\s+companies?\s+from/i,
-    /find\s+.+\s+companies/i,
   ],
   customer_health: [
     /health/i,
@@ -283,13 +286,89 @@ function extractFilters(query: string): QueryFilters {
 }
 
 /**
- * Classify the user's intent using keyword matching
- * 
- * TODO: Replace with LLM-based classification for better accuracy
- * See documentation at top of file for integration guide
+ * Classify the user's intent using LLM
+ * Uses OpenAI to understand the query and route to the right handler
  */
-function classifyIntent(query: string): ParsedIntent {
+async function classifyIntent(query: string): Promise<ParsedIntent> {
   const filters = extractFilters(query)
+  
+  const openaiApiKey = process.env.OPENAI_API_KEY
+  if (!openaiApiKey) {
+    // Fallback to keyword matching if no API key
+    return classifyIntentKeyword(query, filters)
+  }
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${openaiApiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a CRM query classifier. Analyze the user's query and determine the intent.
+
+Available intents:
+- prospecting: User wants to FIND or SEARCH for new companies/brands/leads on the web (e.g., "find D2C brands", "search for AI startups")
+- pipeline_overview: User wants to see their sales pipeline or customer list
+- pipeline_silent: User wants to find deals/customers that have gone quiet or inactive
+- pipeline_by_value: User wants to filter deals by monetary value
+- pipeline_by_stage: User wants to filter by status (lead, negotiating, won, lost)
+- pipeline_analytics: User wants stats, metrics, or totals
+- meeting_prep: User wants context/info about a specific person or company for a meeting
+- recruitment: User wants to see job candidates
+- recruitment_by_stage: User wants candidates filtered by hiring stage
+- competitor_intel: User wants info about competitors
+- customer_health: User wants to check on customer retention or churn risk
+- general: Anything else or unclear
+
+Respond with JSON only: {"intent": "<intent_name>", "searchQuery": "<extracted search terms if prospecting>", "name": "<person/company name if mentioned>"}
+If intent is prospecting, extract the actual search terms (e.g., "D2C brands in Stockholm" from "find me D2C brands in Stockholm").`
+          },
+          { role: 'user', content: query }
+        ],
+        temperature: 0,
+        max_tokens: 150,
+      }),
+    })
+
+    if (!response.ok) {
+      console.error('Intent classification failed:', response.status)
+      return classifyIntentKeyword(query, filters)
+    }
+
+    const data = await response.json()
+    const content = data.choices?.[0]?.message?.content || ''
+    
+    try {
+      const parsed = JSON.parse(content)
+      return {
+        type: parsed.intent as IntentType || 'general',
+        filters: {
+          ...filters,
+          searchQuery: parsed.searchQuery || filters.searchQuery,
+          name: parsed.name || filters.name,
+        },
+        originalQuery: query,
+      }
+    } catch {
+      console.error('Failed to parse LLM intent response:', content)
+      return classifyIntentKeyword(query, filters)
+    }
+  } catch (error) {
+    console.error('Intent classification error:', error)
+    return classifyIntentKeyword(query, filters)
+  }
+}
+
+/**
+ * Fallback: Classify intent using keyword matching
+ */
+function classifyIntentKeyword(query: string, filters: QueryFilters): ParsedIntent {
   const queryLower = query.toLowerCase()
   
   // Check patterns in order of specificity (most specific first)
@@ -784,65 +863,123 @@ async function handleCompetitorIntel(filters: QueryFilters): Promise<AskResponse
 
 /**
  * Handle prospecting queries (web search)
- * Searches the web for companies matching the query
+ * Uses OpenAI's web search via Responses API
+ * Supports both company search and talent/people search
  */
 async function handleProspecting(filters: QueryFilters, originalQuery: string): Promise<AskResponse> {
+  // Detect if this is a talent/people search vs company search
+  const talentKeywords = /designer|developer|engineer|marketer|talent|hire|hiring|candidate|recruiter|founder|cto|cmo|ceo|head of|director|manager|freelance/i
+  const isTalentSearch = talentKeywords.test(originalQuery)
+
   // Extract search terms from the query
   const searchQuery = filters.searchQuery || 
     originalQuery
       .replace(/find|search|looking for|companies|company|prospects?|like/gi, '')
       .trim() ||
-    'B2B SaaS companies'
+    (isTalentSearch ? 'product designers Stockholm' : 'B2B SaaS companies')
 
   try {
-    const braveApiKey = process.env.BRAVE_API_KEY
-    
-    let results: Array<{
-      title: string
-      url: string
-      description: string
-      domain: string
-    }> = []
+    const openaiApiKey = process.env.OPENAI_API_KEY
 
-    if (braveApiKey) {
-      // Use Brave Search API
-      const searchUrl = new URL('https://api.search.brave.com/res/v1/web/search')
-      searchUrl.searchParams.set('q', searchQuery)
-      searchUrl.searchParams.set('count', '8')
-
-      const response = await fetch(searchUrl.toString(), {
-        headers: {
-          'Accept': 'application/json',
-          'X-Subscription-Token': braveApiKey,
-        },
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        results = (data.web?.results || []).map((r: {
-          title: string
-          url: string
-          description: string
-        }) => ({
-          title: r.title,
-          url: r.url,
-          description: r.description,
-          domain: new URL(r.url).hostname.replace('www.', ''),
-        }))
+    if (!openaiApiKey) {
+      return {
+        type: 'prospecting',
+        title: '🔍 Search',
+        summary: 'Web search not configured. Add OPENAI_API_KEY to enable.',
+        insights: ['OPENAI_API_KEY not set'],
+        suggestedActions: [
+          'Add OPENAI_API_KEY to environment',
+          'Add manually',
+        ],
       }
     }
 
-    // If no API key or no results, return helpful message
+    // Different prompts for talent vs company search
+    const prompt = isTalentSearch
+      ? `Find 6-8 real people matching this search: "${searchQuery}".
+         Search LinkedIn, Twitter/X, Dribbble, Behance, GitHub, and portfolio sites.
+         Look for actual professionals with real profiles.
+         
+         For each person, provide:
+         - Full name
+         - Current role/title
+         - Company they work at (or "Freelance")
+         - LinkedIn or portfolio URL
+         - One sentence about their background/expertise
+         
+         Return as JSON array: [{"name": "Full Name", "role": "Job Title", "company": "Company Name", "website": "https://linkedin.com/in/...", "description": "Background..."}]
+         Only return the JSON array, no other text.`
+      : `Find 6-8 companies matching this search: "${searchQuery}". 
+         For each company, provide:
+         - Company name
+         - Website URL  
+         - One sentence description of what they do
+         
+         Return as JSON array: [{"company": "Name", "website": "https://...", "description": "..."}]
+         Only return the JSON array, no other text.`
+
+    // Use OpenAI Responses API with web search
+    const response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${openaiApiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        tools: [{ type: 'web_search' }],
+        input: prompt,
+      }),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('OpenAI web search error:', response.status, errorText)
+      throw new Error(`OpenAI API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+    
+    // Extract the output text from the response
+    // OpenAI Responses API returns output as array with web_search_call and message items
+    // Find the message item which contains the actual text response
+    const messageOutput = data.output?.find((o: { type: string }) => o.type === 'message')
+    const outputText = messageOutput?.content?.[0]?.text || 
+                       data.output?.[0]?.content?.[0]?.text ||
+                       data.choices?.[0]?.message?.content ||
+                       ''
+    
+    // Parse the JSON from the response
+    // Shape differs for talent vs company search
+    let results: Array<{
+      company?: string
+      name?: string
+      role?: string
+      website: string
+      description: string
+    }> = []
+
+    try {
+      // Try to extract JSON from the response
+      const jsonMatch = outputText.match(/\[[\s\S]*\]/)
+      if (jsonMatch) {
+        results = JSON.parse(jsonMatch[0])
+      }
+    } catch (parseError) {
+      console.error('Failed to parse OpenAI response:', parseError, outputText)
+    }
+
     if (results.length === 0) {
       return {
         type: 'prospecting',
-        title: '🔍 Company Search',
-        summary: `No search results for "${searchQuery}". Try a more specific search or add companies manually.`,
-        insights: [
-          braveApiKey ? 'Search returned no results' : 'BRAVE_API_KEY not configured for web search',
-          'You can still add companies manually',
-        ],
-        suggestedActions: [
+        title: isTalentSearch ? '🔍 Talent Search' : '🔍 Company Search',
+        summary: `No ${isTalentSearch ? 'candidates' : 'companies'} found for "${searchQuery}". Try a different search.`,
+        insights: ['Search returned no structured results'],
+        suggestedActions: isTalentSearch ? [
+          'Search for "product designers Stockholm"',
+          'Search for "senior developers fintech"',
+          'Add candidate manually',
+        ] : [
           'Search for "AI marketing companies"',
           'Search for "SaaS companies Stockholm"',
           'Add company manually',
@@ -850,20 +987,61 @@ async function handleProspecting(filters: QueryFilters, originalQuery: string): 
       }
     }
 
+    // Format results differently for talent vs company search
+    if (isTalentSearch) {
+      return {
+        type: 'prospecting',
+        title: `👥 Found ${results.length} Candidates`,
+        summary: `Talent search for "${searchQuery}". Click + to add to recruitment.`,
+        data: results.map(r => {
+          let domain = ''
+          try {
+            domain = new URL(r.website).hostname.replace('www.', '')
+          } catch { /* invalid url */ }
+          
+          return {
+            name: r.name,
+            company: r.company || r.role,
+            website: r.website,
+            description: `${r.role || ''}${r.company ? ` at ${r.company}` : ''}. ${r.description || ''}`.trim(),
+            domain,
+            addable: true,
+            isTalent: true, // Flag for UI to show recruit button prominently
+          }
+        }),
+        insights: [
+          'Results from LinkedIn, portfolios, and professional networks',
+          'Click + to add as a recruitment candidate',
+        ],
+        suggestedActions: [
+          'Show recruitment pipeline',
+          'Search for more candidates',
+        ],
+        meta: { totalCount: results.length },
+      }
+    }
+
     return {
       type: 'prospecting',
       title: `🔍 Found ${results.length} Companies`,
-      summary: `Search results for "${searchQuery}". Click + to add any company to your CRM.`,
-      data: results.map(r => ({
-        company: r.title.split(' - ')[0].split(' | ')[0].trim(), // Clean up title
-        website: r.url,
-        description: r.description,
-        domain: r.domain,
-        addable: true, // Flag for UI to show add button
-      })),
+      summary: `AI-powered search for "${searchQuery}". Click + to add to CRM.`,
+      data: results.map(r => {
+        let domain = ''
+        try {
+          domain = new URL(r.website).hostname.replace('www.', '')
+        } catch { /* invalid url */ }
+        
+        return {
+          company: r.company,
+          website: r.website,
+          description: r.description,
+          domain,
+          addable: true,
+        }
+      }),
       insights: [
-        'Click the + button to add a company as a lead',
-        'Added companies will appear in your pipeline',
+        'Results powered by OpenAI web search',
+        'Click + to add a company as a lead',
       ],
       suggestedActions: [
         'Show my pipeline',
@@ -983,7 +1161,7 @@ function errorResponse(type: IntentType, message: string): AskResponse {
  * 3. Consider streaming responses for better UX
  */
 async function processQuery(query: string): Promise<AskResponse> {
-  const { type, filters } = classifyIntent(query)
+  const { type, filters } = await classifyIntent(query)
   
   switch (type) {
     case 'pipeline_silent':

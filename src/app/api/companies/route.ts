@@ -80,9 +80,7 @@ export async function POST(request: NextRequest) {
         email: contactEmail,
         company: body.company,
         status: 'lead',
-        mrr_value: null,
-        // Note: using a comment field approach since customers table doesn't have dedicated notes
-        // The description is stored by setting it as part of the company name if needed
+        mrr_value: 0, // Default to 0 for leads
       })
       .select()
       .single()

@@ -18,7 +18,8 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Plus, Trash2, DollarSign, Building, Mail, RefreshCw } from 'lucide-react'
+import { Plus, Trash2, DollarSign, Building, Mail, RefreshCw, Send } from 'lucide-react'
+import { EmailModal } from '@/components/email-modal'
 
 const COLUMNS = [
   { id: 'lead', title: 'Lead', color: 'bg-gray-400' },
@@ -41,6 +42,8 @@ export default function CustomersPage() {
     mrr_value: '',
     status: 'lead' as Customer['status'],
   })
+  const [emailModalOpen, setEmailModalOpen] = useState(false)
+  const [emailCustomer, setEmailCustomer] = useState<Customer | null>(null)
 
   const fetchCustomers = useCallback(async () => {
     const { data } = await supabase
@@ -137,6 +140,12 @@ export default function CustomersPage() {
     fetchCustomers()
   }
 
+  const openEmailModal = (customer: Customer, e: React.MouseEvent) => {
+    e.stopPropagation() // Prevent card click
+    setEmailCustomer(customer)
+    setEmailModalOpen(true)
+  }
+
   const [syncing, setSyncing] = useState(false)
 
   const handleGmailSync = async () => {
@@ -176,7 +185,18 @@ export default function CustomersPage() {
 
   const renderCard = (customer: Customer) => (
     <div className="space-y-2">
-      <div className="font-medium text-sm">{customer.name}</div>
+      <div className="flex items-center justify-between">
+        <div className="font-medium text-sm">{customer.name}</div>
+        {customer.email && (
+          <button
+            onClick={(e) => openEmailModal(customer, e)}
+            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+            title="Send email"
+          >
+            <Send className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
       {customer.company && (
         <div className="flex items-center gap-1 text-xs text-gray-500">
           <Building className="w-3 h-3" />
@@ -300,6 +320,16 @@ export default function CustomersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Email Modal */}
+      <EmailModal
+        isOpen={emailModalOpen}
+        onClose={() => {
+          setEmailModalOpen(false)
+          setEmailCustomer(null)
+        }}
+        customer={emailCustomer}
+      />
     </div>
   )
 }

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { supabase } from '@/lib/supabase'
 import { MeetingCard, Meeting } from '@/components/meeting-card'
+import { SearchResultsModal } from '@/components/search-results-modal'
 import { 
   Users, 
   DollarSign,
@@ -18,6 +19,14 @@ import {
   TrendingUp,
   X,
 } from 'lucide-react'
+
+interface SearchResult {
+  company?: string
+  name?: string
+  website?: string
+  description?: string
+  domain?: string
+}
 
 interface DashboardStats {
   customers: {
@@ -33,11 +42,12 @@ interface DashboardStats {
 }
 
 interface AskResponse {
-  type: 'pipeline' | 'recruitment' | 'meeting' | 'competitor' | 'general'
+  type: 'pipeline' | 'recruitment' | 'meeting' | 'competitor' | 'prospecting' | 'general' | string
   title: string
   summary: string
   data?: Record<string, unknown>[]
   suggestions?: string[]
+  suggestedActions?: string[]
 }
 
 function getGreeting(): string {
@@ -62,6 +72,10 @@ export default function Home() {
   const [isAsking, setIsAsking] = useState(false)
   const [aiResponse, setAiResponse] = useState<AskResponse | null>(null)
   const [aiError, setAiError] = useState<string | null>(null)
+  // Search results modal
+  const [modalOpen, setModalOpen] = useState(false)
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+  const [lastSearchQuery, setLastSearchQuery] = useState('')
 
   useEffect(() => {
     async function fetchStats() {
@@ -162,8 +176,17 @@ export default function Home() {
       }
 
       const data: AskResponse = await res.json()
-      setAiResponse(data)
-      setAiQuery('')
+      
+      // For prospecting results, open modal instead of inline display
+      if (data.type === 'prospecting' && data.data && data.data.length > 0) {
+        setSearchResults(data.data as SearchResult[])
+        setLastSearchQuery(query)
+        setModalOpen(true)
+        setAiQuery('')
+      } else {
+        setAiResponse(data)
+        setAiQuery('')
+      }
     } catch (error) {
       console.error('Ask VXA error:', error)
       setAiError('Sorry, I encountered an error. Please try again.')
@@ -433,6 +456,14 @@ export default function Home() {
           )}
         </div>
       </div>
+
+      {/* Search Results Modal */}
+      <SearchResultsModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        results={searchResults}
+        searchQuery={lastSearchQuery}
+      />
     </div>
   )
 }
