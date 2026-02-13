@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Plus, Trash2, DollarSign, Building, Mail, RefreshCw, Send } from 'lucide-react'
+import { Plus, Trash2, DollarSign, Building, Mail, RefreshCw, Send, Link2 } from 'lucide-react'
 import { EmailModal } from '@/components/email-modal'
 
 const COLUMNS = [
@@ -146,6 +146,17 @@ export default function CustomersPage() {
     setEmailModalOpen(true)
   }
 
+  const copyBookingLink = (customer: Customer, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const bookingUrl = `${window.location.origin}/booking/${customer.id}`
+    navigator.clipboard.writeText(bookingUrl)
+    toast({
+      title: 'Booking Link Copied! 📋',
+      description: `Link for ${customer.name || customer.company} copied to clipboard`,
+      variant: 'success',
+    })
+  }
+
   const [syncing, setSyncing] = useState(false)
 
   const handleGmailSync = async () => {
@@ -187,15 +198,24 @@ export default function CustomersPage() {
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <div className="font-medium text-sm">{customer.name}</div>
-        {customer.email && (
+        <div className="flex items-center gap-1">
           <button
-            onClick={(e) => openEmailModal(customer, e)}
-            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-            title="Send email"
+            onClick={(e) => copyBookingLink(customer, e)}
+            className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-md transition-colors"
+            title="Copy booking link"
           >
-            <Send className="w-3.5 h-3.5" />
+            <Link2 className="w-3.5 h-3.5" />
           </button>
-        )}
+          {customer.email && (
+            <button
+              onClick={(e) => openEmailModal(customer, e)}
+              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+              title="Send email"
+            >
+              <Send className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
       {customer.company && (
         <div className="flex items-center gap-1 text-xs text-gray-500">
