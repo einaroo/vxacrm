@@ -2,19 +2,20 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { supabase } from '@/lib/supabase'
+import { MeetingCard, Meeting } from '@/components/meeting-card'
 import { 
   Users, 
-  Target, 
-  UserPlus, 
-  MessageSquare,
   DollarSign,
-  TrendingUp,
   UserCheck,
   Eye,
-  Loader2
+  Loader2,
+  ArrowRight,
+  Sparkles,
+  Calendar,
+  PlusCircle,
+  TrendingUp,
 } from 'lucide-react'
 
 interface DashboardStats {
@@ -30,72 +31,35 @@ interface DashboardStats {
   competitors: number
 }
 
-const navigationCards = [
-  {
-    href: '/customers',
-    title: 'Customers',
-    description: 'Track sales pipeline from lead to won',
-    icon: Users,
-    color: 'bg-blue-500',
-  },
-  {
-    href: '/competitors',
-    title: 'Competitors',
-    description: 'Monitor market competition',
-    icon: Target,
-    color: 'bg-orange-500',
-  },
-  {
-    href: '/recruitment',
-    title: 'Recruitment',
-    description: 'Manage hiring pipeline',
-    icon: UserPlus,
-    color: 'bg-green-500',
-  },
-  {
-    href: '/interviews',
-    title: 'Interviews',
-    description: 'Customer interview insights',
-    icon: MessageSquare,
-    color: 'bg-purple-500',
-  },
-]
+function getGreeting(): string {
+  const hour = new Date().getHours()
+  if (hour < 12) return 'Good morning'
+  if (hour < 17) return 'Good afternoon'
+  return 'Good evening'
+}
 
-const customerStatuses = [
-  { id: 'lead', label: 'Leads', color: 'bg-gray-400' },
-  { id: 'in-contact', label: 'In Contact', color: 'bg-blue-500' },
-  { id: 'negotiating', label: 'Negotiating', color: 'bg-yellow-500' },
-  { id: 'won', label: 'Won', color: 'bg-green-500' },
-  { id: 'lost', label: 'Lost', color: 'bg-red-500' },
-]
-
-const recruitStages = [
-  { id: 'lead', label: 'Lead', color: 'bg-gray-400' },
-  { id: 'screen', label: 'Screen', color: 'bg-blue-500' },
-  { id: 'interview', label: 'Interview', color: 'bg-yellow-500' },
-  { id: 'offer', label: 'Offer', color: 'bg-purple-500' },
-  { id: 'hired', label: 'Hired', color: 'bg-green-500' },
+const quickActions = [
+  { label: 'Prep for next meeting', icon: Calendar },
+  { label: 'Show pipeline', icon: TrendingUp },
+  { label: 'Add customer', icon: PlusCircle },
 ]
 
 export default function Home() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [meetings, setMeetings] = useState<Meeting[]>([])
   const [loading, setLoading] = useState(true)
+  const [meetingsLoading, setMeetingsLoading] = useState(true)
+  const [aiQuery, setAiQuery] = useState('')
 
   useEffect(() => {
     async function fetchStats() {
       try {
-        // Fetch customers
         const { data: customers } = await supabase.from('customers').select('status, mrr_value')
-        
-        // Fetch recruits
         const { data: recruits } = await supabase.from('recruits').select('stage')
-        
-        // Fetch competitors count
         const { count: competitorCount } = await supabase
           .from('competitors')
           .select('*', { count: 'exact', head: true })
 
-        // Calculate customer stats
         const customersByStatus: Record<string, number> = {}
         let pipelineValue = 0
         
@@ -106,7 +70,6 @@ export default function Home() {
           }
         })
 
-        // Calculate recruit stats
         const recruitsByStage: Record<string, number> = {}
         recruits?.forEach((r) => {
           recruitsByStage[r.stage] = (recruitsByStage[r.stage] || 0) + 1
@@ -131,169 +94,204 @@ export default function Home() {
       }
     }
 
+    async function fetchMeetings() {
+      try {
+        const res = await fetch('/api/meetings/today')
+        if (res.ok) {
+          const data = await res.json()
+          // Transform API response to Meeting format
+          const transformedMeetings: Meeting[] = (data.meetings || []).map((m: {
+            id: string
+            title: string
+            startTime?: string
+            endTime?: string
+            time?: string
+            attendees: string[] | { email?: string; name: string }[]
+          }) => ({
+            id: m.id,
+            title: m.title,
+            startTime: m.startTime ? new Date(m.startTime) : new Date(),
+            endTime: m.endTime ? new Date(m.endTime) : new Date(Date.now() + 3600000),
+            attendees: m.attendees.map((a: string | { email?: string; name: string }) =>
+              typeof a === 'string' ? { name: a } : a
+            ),
+          }))
+          setMeetings(transformedMeetings)
+        }
+      } catch (error) {
+        console.error('Error fetching meetings:', error)
+      } finally {
+        setMeetingsLoading(false)
+      }
+    }
+
     fetchStats()
+    fetchMeetings()
   }, [])
 
+  const handleAiSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (aiQuery.trim()) {
+      // TODO: Integrate with AI backend
+      console.log('AI Query:', aiQuery)
+    }
+  }
+
+  const handleQuickAction = (action: string) => {
+    setAiQuery(action)
+  }
+
   return (
-    <div className="py-8 space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Welcome to VXA Labs CRM</h1>
-        <p className="text-gray-600">Manage your sales, recruitment, and competitive intelligence.</p>
+    <div className="min-h-screen">
+      {/* Hero Section with Greeting and AI Input */}
+      <div className="pt-16 pb-12 px-4">
+        <div className="max-w-3xl mx-auto text-center space-y-8">
+          {/* Personalized Greeting */}
+          <h1 className="text-4xl md:text-5xl font-semibold tracking-tight text-black">
+            {getGreeting()}, Einar
+          </h1>
+          
+          {/* AI Input Field */}
+          <form onSubmit={handleAiSubmit} className="relative">
+            <div className="relative flex items-center">
+              <div className="absolute left-5 text-gray-400">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <input
+                type="text"
+                value={aiQuery}
+                onChange={(e) => setAiQuery(e.target.value)}
+                placeholder="Ask anything..."
+                className="w-full h-14 md:h-16 pl-14 pr-32 text-lg bg-white border border-gray-200 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all placeholder:text-gray-400"
+              />
+              <Button 
+                type="submit"
+                className="absolute right-2 h-10 md:h-12 px-6 bg-black hover:bg-gray-800 text-white rounded-xl font-medium"
+              >
+                <span className="hidden sm:inline">Ask</span>
+                <ArrowRight className="w-4 h-4 sm:ml-2" />
+              </Button>
+            </div>
+          </form>
+
+          {/* Quick Action Chips */}
+          <div className="flex flex-wrap justify-center gap-3">
+            {quickActions.map((action) => {
+              const Icon = action.icon
+              return (
+                <button
+                  key={action.label}
+                  onClick={() => handleQuickAction(action.label)}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-full text-sm font-medium text-gray-700 transition-colors"
+                >
+                  <Icon className="w-4 h-4" />
+                  {action.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
       </div>
 
-      {/* Stats Overview */}
-      {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => (
-            <Card key={i} className="p-6">
-              <div className="flex items-center justify-center h-20">
-                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-              </div>
-            </Card>
-          ))}
-        </div>
-      ) : stats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Total Customers */}
-          <Card className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                <Users className="w-6 h-6 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Total Customers</p>
-                <p className="text-2xl font-bold">{stats.customers.total}</p>
-              </div>
+      {/* Main Content */}
+      <div className="max-w-6xl mx-auto px-4 pb-16 space-y-12">
+        {/* Stats Grid */}
+        <div>
+          {loading ? (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="p-6 bg-white border border-gray-100 rounded-2xl">
+                  <div className="flex items-center justify-center h-16">
+                    <Loader2 className="w-5 h-5 animate-spin text-gray-300" />
+                  </div>
+                </div>
+              ))}
             </div>
-          </Card>
-
-          {/* Pipeline Value */}
-          <Card className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <DollarSign className="w-6 h-6 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Won MRR</p>
-                <p className="text-2xl font-bold">${stats.pipelineValue.toLocaleString()}</p>
-              </div>
-            </div>
-          </Card>
-
-          {/* Recruitment */}
-          <Card className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                <UserCheck className="w-6 h-6 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Candidates</p>
-                <p className="text-2xl font-bold">{stats.recruits.total}</p>
-              </div>
-            </div>
-          </Card>
-
-          {/* Competitors */}
-          <Card className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                <Eye className="w-6 h-6 text-orange-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Competitors</p>
-                <p className="text-2xl font-bold">{stats.competitors}</p>
-              </div>
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {/* Pipeline Breakdown */}
-      {!loading && stats && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Customer Pipeline */}
-          <Card className="p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <TrendingUp className="w-5 h-5 text-gray-600" />
-              <h2 className="font-semibold text-lg">Sales Pipeline</h2>
-            </div>
-            <div className="space-y-3">
-              {customerStatuses.map((status) => {
-                const count = stats.customers.byStatus[status.id] || 0
-                const percentage = stats.customers.total > 0 
-                  ? Math.round((count / stats.customers.total) * 100) 
-                  : 0
-                return (
-                  <div key={status.id} className="flex items-center gap-3">
-                    <div className={`w-2 h-2 rounded-full ${status.color}`} />
-                    <span className="text-sm text-gray-600 w-24">{status.label}</span>
-                    <div className="flex-1 bg-gray-100 rounded-full h-2">
-                      <div 
-                        className={`h-2 rounded-full ${status.color} transition-all duration-500`}
-                        style={{ width: `${percentage}%` }}
-                      />
+          ) : stats && (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <Link href="/customers">
+                <div className="group p-6 bg-white border border-gray-100 rounded-2xl hover:border-gray-200 hover:shadow-sm transition-all cursor-pointer">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center group-hover:bg-gray-100 transition-colors">
+                      <Users className="w-5 h-5 text-gray-600" />
                     </div>
-                    <Badge variant="secondary" className="text-xs min-w-[2.5rem] justify-center">
-                      {count}
-                    </Badge>
+                    <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
                   </div>
-                )
-              })}
-            </div>
-          </Card>
-
-          {/* Recruitment Pipeline */}
-          <Card className="p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <UserPlus className="w-5 h-5 text-gray-600" />
-              <h2 className="font-semibold text-lg">Recruitment Pipeline</h2>
-            </div>
-            <div className="space-y-3">
-              {recruitStages.map((stage) => {
-                const count = stats.recruits.byStage[stage.id] || 0
-                const percentage = stats.recruits.total > 0 
-                  ? Math.round((count / stats.recruits.total) * 100) 
-                  : 0
-                return (
-                  <div key={stage.id} className="flex items-center gap-3">
-                    <div className={`w-2 h-2 rounded-full ${stage.color}`} />
-                    <span className="text-sm text-gray-600 w-24">{stage.label}</span>
-                    <div className="flex-1 bg-gray-100 rounded-full h-2">
-                      <div 
-                        className={`h-2 rounded-full ${stage.color} transition-all duration-500`}
-                        style={{ width: `${percentage}%` }}
-                      />
-                    </div>
-                    <Badge variant="secondary" className="text-xs min-w-[2.5rem] justify-center">
-                      {count}
-                    </Badge>
-                  </div>
-                )
-              })}
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {/* Navigation Cards */}
-      <div>
-        <h2 className="font-semibold text-lg mb-4">Quick Access</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {navigationCards.map((card) => {
-            const Icon = card.icon
-            return (
-              <Link key={card.href} href={card.href}>
-                <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer h-full">
-                  <div className={`w-10 h-10 ${card.color} rounded-lg flex items-center justify-center mb-4`}>
-                    <Icon className="w-5 h-5 text-white" />
-                  </div>
-                  <h3 className="font-semibold mb-1">{card.title}</h3>
-                  <p className="text-sm text-gray-600">{card.description}</p>
-                </Card>
+                  <p className="text-3xl font-semibold text-black mb-1">{stats.customers.total}</p>
+                  <p className="text-sm text-gray-500">Customers</p>
+                </div>
               </Link>
-            )
-          })}
+
+              <div className="p-6 bg-white border border-gray-100 rounded-2xl">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center">
+                    <DollarSign className="w-5 h-5 text-gray-600" />
+                  </div>
+                </div>
+                <p className="text-3xl font-semibold text-black mb-1">
+                  ${stats.pipelineValue.toLocaleString()}
+                </p>
+                <p className="text-sm text-gray-500">Won MRR</p>
+              </div>
+
+              <Link href="/recruitment">
+                <div className="group p-6 bg-white border border-gray-100 rounded-2xl hover:border-gray-200 hover:shadow-sm transition-all cursor-pointer">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center group-hover:bg-gray-100 transition-colors">
+                      <UserCheck className="w-5 h-5 text-gray-600" />
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
+                  </div>
+                  <p className="text-3xl font-semibold text-black mb-1">{stats.recruits.total}</p>
+                  <p className="text-sm text-gray-500">Candidates</p>
+                </div>
+              </Link>
+
+              <Link href="/competitors">
+                <div className="group p-6 bg-white border border-gray-100 rounded-2xl hover:border-gray-200 hover:shadow-sm transition-all cursor-pointer">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center group-hover:bg-gray-100 transition-colors">
+                      <Eye className="w-5 h-5 text-gray-600" />
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
+                  </div>
+                  <p className="text-3xl font-semibold text-black mb-1">{stats.competitors}</p>
+                  <p className="text-sm text-gray-500">Competitors</p>
+                </div>
+              </Link>
+            </div>
+          )}
+        </div>
+
+        {/* Today's Meetings */}
+        <div>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-semibold text-black">Today&apos;s Meetings</h2>
+            <Button variant="ghost" className="text-gray-500 hover:text-black">
+              View calendar
+              <ArrowRight className="w-4 h-4 ml-1" />
+            </Button>
+          </div>
+          
+          {meetingsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-5 h-5 animate-spin text-gray-300" />
+            </div>
+          ) : meetings.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              {meetings.map((meeting) => (
+                <MeetingCard key={meeting.id} meeting={meeting} />
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center mb-4">
+                <Calendar className="w-5 h-5 text-gray-400" />
+              </div>
+              <p className="text-gray-500 mb-1">No meetings scheduled for today</p>
+              <p className="text-sm text-gray-400">Your calendar is clear</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
