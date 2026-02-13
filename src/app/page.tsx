@@ -108,7 +108,7 @@ export default function Home() {
 
     async function fetchMeetings() {
       try {
-        const res = await fetch('/api/meetings/today')
+        const res = await fetch('/api/calendar')
         if (res.ok) {
           const data = await res.json()
           // Transform API response to Meeting format
