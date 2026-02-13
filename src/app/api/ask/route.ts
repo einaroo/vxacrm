@@ -783,7 +783,9 @@ async function handleCompetitorIntel(filters: QueryFilters): Promise<AskResponse
  * Handle prospecting queries (web search)
  * TODO: Integrate with web search API
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function handleProspecting(_filters: QueryFilters): Promise<AskResponse> {
+  // TODO: Use filters when web search is integrated
   return {
     type: 'prospecting',
     title: '🔍 Prospecting',
