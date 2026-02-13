@@ -118,15 +118,18 @@ export default function Home() {
             startTime?: string
             endTime?: string
             time?: string
-            attendees: string[] | { email?: string; name: string }[]
+            attendees: string[] | { email?: string; name?: string }[]
           }) => ({
             id: m.id,
             title: m.title,
             startTime: m.startTime ? new Date(m.startTime) : new Date(),
             endTime: m.endTime ? new Date(m.endTime) : new Date(Date.now() + 3600000),
-            attendees: m.attendees.map((a: string | { email?: string; name: string }) =>
-              typeof a === 'string' ? { name: a } : a
-            ),
+            attendees: m.attendees.map((a: string | { email?: string; name?: string }) => {
+              if (typeof a === 'string') return { name: a }
+              // Fallback: use name, or derive from email, or use 'Unknown'
+              const name = a.name || (a.email ? a.email.split('@')[0].replace(/[._]/g, ' ') : 'Unknown')
+              return { email: a.email, name }
+            }),
           }))
           setMeetings(transformedMeetings)
         }
