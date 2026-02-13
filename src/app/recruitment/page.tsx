@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { Suspense, useEffect, useState, useCallback, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { DropResult } from '@hello-pangea/dnd'
 import { supabase } from '@/lib/supabase'
@@ -85,7 +85,7 @@ function matchesRoleFilter(role: string | null | undefined, filter: RoleFilter):
   }
 }
 
-export default function RecruitmentPage() {
+function RecruitmentContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   
@@ -499,5 +499,13 @@ export default function RecruitmentPage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+export default function RecruitmentPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+      <RecruitmentContent />
+    </Suspense>
   )
 }
