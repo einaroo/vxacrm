@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { DropResult } from '@hello-pangea/dnd'
 import { supabase } from '@/lib/supabase'
 import { Recruit } from '@/lib/types'
@@ -18,6 +19,13 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Plus, Trash2, Mail, Briefcase, Code, Calendar, RefreshCw } from 'lucide-react'
 import { toast } from '@/components/ui/toast'
 
@@ -29,7 +37,58 @@ const COLUMNS = [
   { id: 'hired', title: 'Hired', color: 'bg-green-500' },
 ]
 
+const ROLE_OPTIONS = [
+  { value: 'Software Engineer', label: 'Software Engineer' },
+  { value: 'Product Designer', label: 'Product Designer' },
+  { value: 'Performance Marketer', label: 'Performance Marketer' },
+  { value: 'Other', label: 'Other' },
+]
+
+type RoleFilter = 'all' | 'developers' | 'designers' | 'marketers'
+
+const ROLE_FILTERS: { id: RoleFilter; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'developers', label: 'Developers' },
+  { id: 'designers', label: 'Designers' },
+  { id: 'marketers', label: 'Marketers' },
+]
+
+function matchesRoleFilter(role: string | null | undefined, filter: RoleFilter): boolean {
+  if (filter === 'all') return true
+  if (!role) return false
+  
+  const normalizedRole = role.toLowerCase()
+  
+  switch (filter) {
+    case 'developers':
+      return (
+        normalizedRole.includes('developer') ||
+        normalizedRole.includes('engineer') ||
+        normalizedRole.includes('full stack') ||
+        normalizedRole.includes('fullstack') ||
+        normalizedRole.includes('backend') ||
+        normalizedRole.includes('frontend')
+      )
+    case 'designers':
+      return (
+        normalizedRole.includes('designer') ||
+        normalizedRole.includes('product design')
+      )
+    case 'marketers':
+      return (
+        normalizedRole.includes('marketer') ||
+        normalizedRole.includes('marketing') ||
+        normalizedRole.includes('performance')
+      )
+    default:
+      return true
+  }
+}
+
 export default function RecruitmentPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  
   const [recruits, setRecruits] = useState<Recruit[]>([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
@@ -46,6 +105,19 @@ export default function RecruitmentPage() {
     comments: '',
     stage: 'lead' as Recruit['stage'],
   })
+
+  // Get role filter from URL params
+  const roleFilter = (searchParams.get('role') as RoleFilter) || 'all'
+
+  const setRoleFilter = (filter: RoleFilter) => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (filter === 'all') {
+      params.delete('role')
+    } else {
+      params.set('role', filter)
+    }
+    router.push(`/recruitment${params.toString() ? `?${params.toString()}` : ''}`)
+  }
 
   const fetchRecruits = useCallback(async () => {
     const { data } = await supabase
@@ -108,18 +180,28 @@ export default function RecruitmentPage() {
     }
   }
 
-  // Filter recruits based on search query
+  // Filter recruits based on search query and role filter
   const filteredRecruits = useMemo(() => {
-    if (!searchQuery.trim()) return recruits
+    let filtered = recruits
     
-    const query = searchQuery.toLowerCase()
-    return recruits.filter((r) => 
-      r.name?.toLowerCase().includes(query) ||
-      r.email?.toLowerCase().includes(query) ||
-      r.position?.toLowerCase().includes(query) ||
-      r.role?.toLowerCase().includes(query)
-    )
-  }, [recruits, searchQuery])
+    // Apply role filter
+    if (roleFilter !== 'all') {
+      filtered = filtered.filter((r) => matchesRoleFilter(r.role, roleFilter))
+    }
+    
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      filtered = filtered.filter((r) => 
+        r.name?.toLowerCase().includes(query) ||
+        r.email?.toLowerCase().includes(query) ||
+        r.position?.toLowerCase().includes(query) ||
+        r.role?.toLowerCase().includes(query)
+      )
+    }
+    
+    return filtered
+  }, [recruits, searchQuery, roleFilter])
 
   const columns = COLUMNS.map((col) => ({
     ...col,
@@ -240,6 +322,14 @@ export default function RecruitmentPage() {
     </div>
   )
 
+  // Count recruits per filter
+  const filterCounts = useMemo(() => ({
+    all: recruits.length,
+    developers: recruits.filter((r) => matchesRoleFilter(r.role, 'developers')).length,
+    designers: recruits.filter((r) => matchesRoleFilter(r.role, 'designers')).length,
+    marketers: recruits.filter((r) => matchesRoleFilter(r.role, 'marketers')).length,
+  }), [recruits])
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -265,6 +355,31 @@ export default function RecruitmentPage() {
         </div>
       </div>
 
+      {/* Role Filter Tabs */}
+      <div className="flex items-center gap-1 mb-4 border-b border-gray-200">
+        {ROLE_FILTERS.map((filter) => (
+          <button
+            key={filter.id}
+            onClick={() => setRoleFilter(filter.id)}
+            className={`
+              px-4 py-2 text-sm font-medium transition-colors relative
+              ${roleFilter === filter.id
+                ? 'text-black'
+                : 'text-gray-500 hover:text-gray-700'
+              }
+            `}
+          >
+            {filter.label}
+            <span className="ml-1.5 text-xs text-gray-400">
+              {filterCounts[filter.id]}
+            </span>
+            {roleFilter === filter.id && (
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />
+            )}
+          </button>
+        ))}
+      </div>
+
       <SearchBar
         value={searchQuery}
         onChange={setSearchQuery}
@@ -272,7 +387,7 @@ export default function RecruitmentPage() {
         className="mb-6 max-w-md"
       />
 
-      {searchQuery && filteredRecruits.length !== recruits.length && (
+      {(searchQuery || roleFilter !== 'all') && filteredRecruits.length !== recruits.length && (
         <p className="text-sm text-gray-500 mb-4">
           Showing {filteredRecruits.length} of {recruits.length} candidates
         </p>
@@ -322,13 +437,22 @@ export default function RecruitmentPage() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="role">Role/Team</Label>
-              <Input
-                id="role"
+              <Label htmlFor="role">Role</Label>
+              <Select
                 value={formData.role}
-                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                placeholder="e.g., Backend, Design"
-              />
+                onValueChange={(value) => setFormData({ ...formData, role: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a role..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {ROLE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="priority">Priority</Label>

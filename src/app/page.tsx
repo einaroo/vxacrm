@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { supabase } from '@/lib/supabase'
@@ -16,6 +16,7 @@ import {
   Calendar,
   PlusCircle,
   TrendingUp,
+  X,
 } from 'lucide-react'
 
 interface DashboardStats {
@@ -29,6 +30,14 @@ interface DashboardStats {
     byStage: Record<string, number>
   }
   competitors: number
+}
+
+interface AskResponse {
+  type: 'pipeline' | 'recruitment' | 'meeting' | 'competitor' | 'general'
+  title: string
+  summary: string
+  data?: Record<string, unknown>[]
+  suggestions?: string[]
 }
 
 function getGreeting(): string {
@@ -50,6 +59,9 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [meetingsLoading, setMeetingsLoading] = useState(true)
   const [aiQuery, setAiQuery] = useState('')
+  const [isAsking, setIsAsking] = useState(false)
+  const [aiResponse, setAiResponse] = useState<AskResponse | null>(null)
+  const [aiError, setAiError] = useState<string | null>(null)
 
   useEffect(() => {
     async function fetchStats() {
@@ -129,16 +141,47 @@ export default function Home() {
     fetchMeetings()
   }, [])
 
+  const submitQuery = useCallback(async (query: string) => {
+    if (!query.trim() || isAsking) return
+
+    setIsAsking(true)
+    setAiError(null)
+
+    try {
+      const res = await fetch('/api/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+      })
+
+      if (!res.ok) {
+        throw new Error('Failed to get response')
+      }
+
+      const data: AskResponse = await res.json()
+      setAiResponse(data)
+      setAiQuery('')
+    } catch (error) {
+      console.error('Ask VXA error:', error)
+      setAiError('Sorry, I encountered an error. Please try again.')
+    } finally {
+      setIsAsking(false)
+    }
+  }, [isAsking])
+
   const handleAiSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (aiQuery.trim()) {
-      // TODO: Integrate with AI backend
-      console.log('AI Query:', aiQuery)
-    }
+    submitQuery(aiQuery)
   }
 
   const handleQuickAction = (action: string) => {
     setAiQuery(action)
+    submitQuery(action)
+  }
+
+  const clearResponse = () => {
+    setAiResponse(null)
+    setAiError(null)
   }
 
   return (
@@ -162,14 +205,22 @@ export default function Home() {
                 value={aiQuery}
                 onChange={(e) => setAiQuery(e.target.value)}
                 placeholder="Ask anything..."
-                className="w-full h-14 md:h-16 pl-14 pr-32 text-lg bg-white border border-gray-200 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all placeholder:text-gray-400"
+                disabled={isAsking}
+                className="w-full h-14 md:h-16 pl-14 pr-32 text-lg bg-white border border-gray-200 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all placeholder:text-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
               />
               <Button 
                 type="submit"
-                className="absolute right-2 h-10 md:h-12 px-6 bg-black hover:bg-gray-800 text-white rounded-xl font-medium"
+                disabled={isAsking || !aiQuery.trim()}
+                className="absolute right-2 h-10 md:h-12 px-6 bg-black hover:bg-gray-800 text-white rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span className="hidden sm:inline">Ask</span>
-                <ArrowRight className="w-4 h-4 sm:ml-2" />
+                {isAsking ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <span className="hidden sm:inline">Ask</span>
+                    <ArrowRight className="w-4 h-4 sm:ml-2" />
+                  </>
+                )}
               </Button>
             </div>
           </form>
@@ -182,7 +233,8 @@ export default function Home() {
                 <button
                   key={action.label}
                   onClick={() => handleQuickAction(action.label)}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-full text-sm font-medium text-gray-700 transition-colors"
+                  disabled={isAsking}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-full text-sm font-medium text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Icon className="w-4 h-4" />
                   {action.label}
@@ -190,6 +242,90 @@ export default function Home() {
               )
             })}
           </div>
+
+          {/* Loading State */}
+          {isAsking && (
+            <div className="flex items-center justify-center gap-2 text-gray-500">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span className="text-sm">Thinking...</span>
+            </div>
+          )}
+
+          {/* Error State */}
+          {aiError && (
+            <div className="max-w-xl mx-auto p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm">
+              {aiError}
+            </div>
+          )}
+
+          {/* AI Response Card */}
+          {aiResponse && !isAsking && (
+            <div className="max-w-xl mx-auto">
+              <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-gray-400" />
+                    <span className="font-medium text-gray-900">{aiResponse.title}</span>
+                  </div>
+                  <button
+                    onClick={clearResponse}
+                    className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Summary */}
+                <div className="px-5 py-4">
+                  <p className="text-gray-600 text-sm leading-relaxed">{aiResponse.summary}</p>
+                </div>
+
+                {/* Data Items */}
+                {aiResponse.data && aiResponse.data.length > 0 && (
+                  <div className="border-t border-gray-100">
+                    {aiResponse.data.slice(0, 5).map((item, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center justify-between px-5 py-3 border-b border-gray-50 last:border-b-0 hover:bg-gray-50 transition-colors"
+                      >
+                        <span className="font-medium text-gray-900 text-sm">
+                          {String(item.name || item.company || item.title || 'Item')}
+                        </span>
+                        {(item.stage ?? item.status ?? item.role) != null && (
+                          <span className="text-xs px-2.5 py-1 bg-gray-100 text-gray-600 rounded-full">
+                            {String(item.stage ?? item.status ?? item.role)}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                    {aiResponse.data.length > 5 && (
+                      <div className="px-5 py-3 text-xs text-gray-400 bg-gray-50">
+                        +{aiResponse.data.length - 5} more
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Suggestions */}
+                {aiResponse.suggestions && aiResponse.suggestions.length > 0 && (
+                  <div className="px-5 py-4 bg-gray-50 border-t border-gray-100">
+                    <div className="flex flex-wrap gap-2">
+                      {aiResponse.suggestions.map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          onClick={() => handleQuickAction(suggestion)}
+                          className="text-xs px-3 py-1.5 bg-white border border-gray-200 rounded-full text-gray-600 hover:border-gray-300 hover:text-gray-900 transition-colors"
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
