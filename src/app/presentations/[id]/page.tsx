@@ -337,10 +337,10 @@ export default function PresentationEditorPage() {
           </DropdownMenu>
         </div>
 
-        {/* Main Editor */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Main Editor + Properties Panel */}
+        <div className="flex-1 flex overflow-hidden">
           {/* Canvas Area */}
-          <div className="flex-1 flex items-center justify-center p-8 overflow-auto">
+          <div className="flex-1 flex items-center justify-center p-8 overflow-auto bg-gray-100">
             <div className="w-full max-w-4xl">
               <div className="aspect-video bg-white rounded-lg shadow-lg overflow-hidden">
                 {selectedSlide && <SlideCanvas slide={selectedSlide} />}
@@ -348,34 +348,34 @@ export default function PresentationEditorPage() {
             </div>
           </div>
 
-          {/* Properties Panel */}
+          {/* Properties Panel - Right Side */}
           {selectedSlide && (
-            <div className="bg-white border-t p-4">
-              <div className="max-w-4xl mx-auto">
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="flex-1">
-                    <Label className="text-xs text-gray-500 mb-1">Template</Label>
-                    <Select
-                      value={selectedSlide.template}
-                      onValueChange={(value) => {
-                        updateSlide({
-                          template: value,
-                          content: getDefaultContent(value),
-                        })
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TEMPLATES.map((t) => (
-                          <SelectItem key={t.id} value={t.id}>
-                            {t.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+            <div className="w-80 bg-white border-l overflow-y-auto p-4">
+              <h3 className="font-semibold text-sm mb-4">Slide Properties</h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-xs text-gray-500 mb-1">Template</Label>
+                  <Select
+                    value={selectedSlide.template}
+                    onValueChange={(value) => {
+                      updateSlide({
+                        template: value,
+                        content: getDefaultContent(value),
+                      })
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TEMPLATES.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <SlideEditor

@@ -10,11 +10,45 @@ import AnimatedGradient from '@/components/fancy/background/animated-gradient-wi
 import Float from '@/components/fancy/blocks/float'
 import Typewriter from '@/components/fancy/text/typewriter'
 
+interface SlideDesign {
+  background?: {
+    type?: string
+    colors?: string[]
+    component?: string
+  }
+  titleEffect?: string
+  animation?: {
+    entrance?: string
+    stagger?: boolean
+    duration?: number
+  }
+  decorations?: Array<{
+    component?: string
+    position?: string
+    content?: string
+  }>
+  accentColor?: string
+}
+
 interface Slide {
   id: string
   slide_order: number
   template: string
-  content: Record<string, unknown>
+  content: Record<string, unknown> & {
+    _design?: SlideDesign
+    _palette?: {
+      primary?: string[]
+      secondary?: string[]
+      accent?: string[]
+      background?: string
+    }
+  }
+}
+
+// Default color palettes
+const DEFAULT_COLORS = {
+  title: ['#0ea5e9', '#6366f1', '#8b5cf6', '#d946ef'],
+  quote: ['#4f46e5', '#7c3aed', '#a855f7', '#ec4899'],
 }
 
 export default function PresentationModePage() {
@@ -152,7 +186,7 @@ export default function PresentationModePage() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.4, ease: 'easeOut' }}
-            className="w-full h-full max-w-[1920px] max-h-[1080px] aspect-video bg-white rounded-lg overflow-hidden shadow-2xl"
+            className="w-full h-full max-w-[1920px] max-h-[1080px] aspect-video rounded-lg overflow-hidden shadow-2xl"
           >
             <PresentSlide slide={currentSlide} slideKey={slideKey} />
           </motion.div>
@@ -161,7 +195,7 @@ export default function PresentationModePage() {
 
       {/* Progress */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 z-50">
-        <span className="text-white/60 text-sm">
+        <span className="text-white/60 text-sm font-medium">
           {currentIndex + 1} / {slides.length}
         </span>
         <div className="flex gap-1.5">
@@ -187,16 +221,55 @@ export default function PresentationModePage() {
 }
 
 function PresentSlide({ slide, slideKey }: { slide: Slide; slideKey: number }) {
-  const content = slide.content as Record<string, unknown>
-  const baseStyles = 'w-full h-full flex flex-col'
+  const content = slide.content
+  const design = content._design
+  const palette = content._palette
+  
+  // Get colors from design or use defaults
+  const getColors = (defaultColors: string[]) => {
+    if (design?.background?.colors?.length) return design.background.colors
+    if (palette?.primary?.length) return palette.primary
+    return defaultColors
+  }
+  
+  const accentColor = design?.accentColor || palette?.accent?.[0] || '#6366f1'
+  const animDuration = design?.animation?.duration || 0.5
+
+  // Render animated title based on design
+  const renderTitle = (text: string, className: string) => {
+    const effect = design?.titleEffect || 'typewriter'
+    
+    if (effect === 'typewriter') {
+      return (
+        <Typewriter 
+          key={slideKey}
+          text={text}
+          speed={35}
+          className={className}
+        />
+      )
+    }
+    
+    return (
+      <motion.span
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: animDuration }}
+        className={className}
+      >
+        {text}
+      </motion.span>
+    )
+  }
 
   switch (slide.template) {
     case 'title':
+      const titleColors = getColors(DEFAULT_COLORS.title)
       return (
-        <div className={cn(baseStyles, 'items-center justify-center text-center relative overflow-hidden')}>
+        <div className="w-full h-full flex flex-col items-center justify-center text-center relative overflow-hidden">
           {/* Animated Gradient Background */}
           <AnimatedGradient 
-            colors={['#0ea5e9', '#6366f1', '#8b5cf6', '#d946ef']} 
+            colors={titleColors} 
             speed={6} 
             blur="heavy" 
           />
@@ -216,18 +289,19 @@ function PresentSlide({ slide, slideKey }: { slide: Slide; slideKey: number }) {
           
           {/* Content */}
           <div className="relative z-10 px-16">
-            <h1 className="text-7xl font-bold mb-6 text-white drop-shadow-2xl">
-              <Typewriter 
-                key={slideKey}
-                text={String(content.title || 'Title')}
-                speed={40}
-                className="inline"
-              />
+            <h1 className="text-7xl font-bold mb-6 text-white drop-shadow-2xl" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+              {renderTitle(String(content.title || 'Title'), 'inline')}
             </h1>
             {Boolean(content.subtitle) && (
-              <p className="text-3xl text-white/90 font-light">
+              <motion.p 
+                className="text-3xl text-white/90 font-light"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.5 }}
+                style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+              >
                 {String(content.subtitle)}
-              </p>
+              </motion.p>
             )}
           </div>
         </div>
@@ -235,20 +309,19 @@ function PresentSlide({ slide, slideKey }: { slide: Slide; slideKey: number }) {
 
     case 'content':
       return (
-        <div className={cn(baseStyles, 'p-16 bg-gradient-to-br from-slate-50 to-white')}>
-          <h2 className="text-5xl font-bold mb-10 bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
-            <Typewriter 
-              key={slideKey}
-              text={String(content.title || 'Title')}
-              speed={30}
-              className="inline"
-            />
+        <div className="w-full h-full flex flex-col p-16 bg-gradient-to-br from-slate-50 to-white">
+          <h2 
+            className="text-5xl font-bold mb-10 bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent"
+            style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+          >
+            {renderTitle(String(content.title || 'Title'), 'inline')}
           </h2>
           <motion.p 
-            className="text-3xl text-slate-600 leading-relaxed whitespace-pre-wrap flex-1"
+            className="text-2xl text-slate-600 leading-relaxed whitespace-pre-wrap flex-1"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.5 }}
+            transition={{ duration: animDuration, delay: 0.3 }}
+            style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
           >
             {String(content.body || '')}
           </motion.p>
@@ -257,29 +330,37 @@ function PresentSlide({ slide, slideKey }: { slide: Slide; slideKey: number }) {
 
     case 'two-column':
       return (
-        <div className={cn(baseStyles, 'p-16 bg-white')}>
-          <h2 className="text-5xl font-bold mb-10 text-slate-800">
-            <Typewriter 
-              key={slideKey}
-              text={String(content.title || 'Title')}
-              speed={30}
-              className="inline"
-            />
+        <div className="w-full h-full flex flex-col p-16 bg-white">
+          <h2 
+            className="text-5xl font-bold mb-10 text-slate-800"
+            style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+          >
+            {renderTitle(String(content.title || 'Title'), 'inline')}
           </h2>
           <div className="flex-1 grid grid-cols-2 gap-12">
             <motion.div 
-              className="text-2xl text-slate-700 whitespace-pre-wrap p-8 bg-gradient-to-br from-blue-50 to-indigo-100 rounded-2xl border border-blue-100"
+              className="text-xl text-slate-700 whitespace-pre-wrap p-8 rounded-2xl border-2"
+              style={{ 
+                backgroundColor: `${accentColor}10`,
+                borderColor: `${accentColor}30`,
+                fontFamily: 'Inter, system-ui, sans-serif'
+              }}
               initial={{ opacity: 0, x: -30 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.4 }}
+              transition={{ duration: animDuration, delay: 0.3 }}
             >
               {String(content.left || '')}
             </motion.div>
             <motion.div 
-              className="text-2xl text-slate-700 whitespace-pre-wrap p-8 bg-gradient-to-br from-purple-50 to-pink-100 rounded-2xl border border-purple-100"
+              className="text-xl text-slate-700 whitespace-pre-wrap p-8 rounded-2xl border-2"
+              style={{ 
+                backgroundColor: `${palette?.secondary?.[0] || '#8b5cf6'}10`,
+                borderColor: `${palette?.secondary?.[0] || '#8b5cf6'}30`,
+                fontFamily: 'Inter, system-ui, sans-serif'
+              }}
               initial={{ opacity: 0, x: 30 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.5 }}
+              transition={{ duration: animDuration, delay: 0.4 }}
             >
               {String(content.right || '')}
             </motion.div>
@@ -290,14 +371,12 @@ function PresentSlide({ slide, slideKey }: { slide: Slide; slideKey: number }) {
     case 'bullets':
       const bullets = (content.bullets as string[]) || []
       return (
-        <div className={cn(baseStyles, 'p-16 bg-gradient-to-br from-white to-slate-50')}>
-          <h2 className="text-5xl font-bold mb-10 text-slate-800">
-            <Typewriter 
-              key={slideKey}
-              text={String(content.title || 'Title')}
-              speed={30}
-              className="inline"
-            />
+        <div className="w-full h-full flex flex-col p-16 bg-gradient-to-br from-white to-slate-50">
+          <h2 
+            className="text-5xl font-bold mb-10 text-slate-800"
+            style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+          >
+            {renderTitle(String(content.title || 'Title'), 'inline')}
           </h2>
           <ul className="space-y-5 flex-1">
             {bullets.map((bullet, i) => (
@@ -306,7 +385,8 @@ function PresentSlide({ slide, slideKey }: { slide: Slide; slideKey: number }) {
                 className="text-2xl text-slate-700 flex items-start gap-4"
                 initial={{ opacity: 0, x: -40 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.4, delay: 0.3 + i * 0.15 }}
+                transition={{ duration: 0.4, delay: 0.2 + i * 0.1 }}
+                style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
               >
                 <Float 
                   speed={0.5} 
@@ -314,7 +394,13 @@ function PresentSlide({ slide, slideKey }: { slide: Slide; slideKey: number }) {
                   rotationRange={[0, 0, 5]}
                   timeOffset={i * 0.5}
                 >
-                  <span className="w-4 h-4 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 mt-2 flex-shrink-0 shadow-lg shadow-blue-500/30" />
+                  <span 
+                    className="w-4 h-4 rounded-full mt-2 flex-shrink-0 shadow-lg"
+                    style={{ 
+                      background: `linear-gradient(135deg, ${accentColor}, ${palette?.primary?.[1] || '#8b5cf6'})`,
+                      boxShadow: `0 4px 14px ${accentColor}40`
+                    }}
+                  />
                 </Float>
                 <span>{bullet}</span>
               </motion.li>
@@ -324,28 +410,32 @@ function PresentSlide({ slide, slideKey }: { slide: Slide; slideKey: number }) {
       )
 
     case 'quote':
+      const quoteColors = getColors(DEFAULT_COLORS.quote)
       return (
-        <div className={cn(baseStyles, 'items-center justify-center text-center relative overflow-hidden bg-slate-900')}>
+        <div className="w-full h-full flex flex-col items-center justify-center text-center relative overflow-hidden bg-slate-900">
           {/* Animated Gradient Overlay */}
           <div className="absolute inset-0 opacity-40">
             <AnimatedGradient 
-              colors={['#4f46e5', '#7c3aed', '#a855f7', '#ec4899']} 
+              colors={quoteColors} 
               speed={8} 
               blur="heavy" 
             />
           </div>
           
-          {/* Floating Elements */}
+          {/* Floating Quote Marks */}
           <Float speed={0.2} amplitude={[30, 20, 0]} rotationRange={[5, 10, 5]} className="absolute top-[10%] left-[5%]">
-            <div className="text-[200px] text-white/5 font-serif">&ldquo;</div>
+            <div className="text-[200px] text-white/5 font-serif leading-none">&ldquo;</div>
           </Float>
           <Float speed={0.2} amplitude={[20, 30, 0]} rotationRange={[8, 5, 3]} timeOffset={3} className="absolute bottom-[10%] right-[5%]">
-            <div className="text-[200px] text-white/5 font-serif">&rdquo;</div>
+            <div className="text-[200px] text-white/5 font-serif leading-none">&rdquo;</div>
           </Float>
           
           {/* Quote Content */}
           <div className="relative z-10 px-20 max-w-5xl">
-            <blockquote className="text-4xl italic text-white leading-relaxed font-light">
+            <blockquote 
+              className="text-4xl italic text-white leading-relaxed font-light"
+              style={{ fontFamily: 'Georgia, serif' }}
+            >
               <Typewriter 
                 key={slideKey}
                 text={String(content.quote || '')}
@@ -357,7 +447,8 @@ function PresentSlide({ slide, slideKey }: { slide: Slide; slideKey: number }) {
                 className="text-2xl text-white/70 mt-10"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ duration: 0.5, delay: 0.8 }}
+                transition={{ duration: 0.5, delay: 1 }}
+                style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
               >
                 — {String(content.author)}
               </motion.p>
@@ -368,7 +459,7 @@ function PresentSlide({ slide, slideKey }: { slide: Slide; slideKey: number }) {
 
     case 'image':
       return (
-        <div className={cn(baseStyles, 'items-center justify-center p-16 bg-slate-50')}>
+        <div className="w-full h-full flex flex-col items-center justify-center p-16 bg-slate-50">
           <Float speed={0.15} amplitude={[5, 8, 0]} rotationRange={[1, 1, 0]}>
             {content.imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -389,6 +480,7 @@ function PresentSlide({ slide, slideKey }: { slide: Slide; slideKey: number }) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.5, delay: 0.3 }}
+              style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
             >
               {String(content.caption)}
             </motion.p>
@@ -398,7 +490,7 @@ function PresentSlide({ slide, slideKey }: { slide: Slide; slideKey: number }) {
 
     default:
       return (
-        <div className={cn(baseStyles, 'items-center justify-center')}>
+        <div className="w-full h-full flex flex-col items-center justify-center bg-white">
           <p className="text-gray-400 text-2xl">Unknown template</p>
         </div>
       )
