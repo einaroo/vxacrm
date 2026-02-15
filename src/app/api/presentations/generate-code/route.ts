@@ -86,7 +86,16 @@ const CODE_GENERATOR_PROMPT = `You are a code generator converting slide specs i
 - bg-black/bg-slate-900, text-white, glowing accents
 
 ## Light Mode
-- bg-white/bg-slate-50, text-slate-900, subtle shadows`
+- bg-white/bg-slate-50, text-slate-900, subtle shadows
+
+## Output Format
+You MUST return this exact JSON structure:
+{
+  "slides": [
+    { "slide_number": 1, "code": "<motion.div className=\"w-full h-full...\">...</motion.div>" }
+  ]
+}
+Each slide must have a "code" field containing the JSX string.`
 
 export async function POST(req: NextRequest) {
   try {
@@ -113,7 +122,9 @@ Requirements:
 - One spec per slide/section
 - Include reasoning for visual choices
 - Pick appropriate fancy_components for each slide's intent
-- Ensure visual consistency`
+- Ensure visual consistency
+
+Return as JSON.`
         }
       ],
       temperature: 0.4,
@@ -155,7 +166,15 @@ Decorations: ${JSON.stringify((s.style as Record<string, unknown>)?.decorations 
 Animation: ${(s.style as Record<string, unknown>)?.animation_entrance}
 `).join('\n')}
 
-Generate visually rich JSX for each slide.`
+Generate visually rich JSX for each slide.
+
+IMPORTANT: Return JSON in this EXACT format:
+{
+  "slides": [
+    { "slide_number": 1, "code": "<motion.div>...JSX here...</motion.div>" },
+    { "slide_number": 2, "code": "<motion.div>...JSX here...</motion.div>" }
+  ]
+}`
         }
       ],
       temperature: 0.3,
@@ -169,7 +188,12 @@ Generate visually rich JSX for each slide.`
     }
 
     const codeResult = JSON.parse(codeContent)
-    console.log('[Generate] Stage 2 complete:', codeResult.slides?.length, 'slides')
+    console.log('[Generate] Stage 2 raw response:', codeContent.substring(0, 500))
+    console.log('[Generate] Stage 2 slides count:', codeResult.slides?.length)
+    if (codeResult.slides?.[0]) {
+      console.log('[Generate] Stage 2 slide 0 keys:', Object.keys(codeResult.slides[0]))
+      console.log('[Generate] Stage 2 slide 0 code:', codeResult.slides[0].code?.substring(0, 200))
+    }
 
     // Combine spec and code
     const slides = codeResult.slides?.map((s: { slide_number?: number; code?: string }, i: number) => ({
