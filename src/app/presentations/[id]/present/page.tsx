@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import { X, ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react'
+import { motion, AnimatePresence } from 'motion/react'
 import AnimatedGradient from '@/components/fancy/background/animated-gradient-with-svg'
 
 interface Slide {
@@ -131,9 +132,18 @@ export default function PresentationModePage() {
 
       {/* Slide */}
       <div className="flex-1 flex items-center justify-center p-8">
-        <div className="w-full h-full max-w-[1920px] max-h-[1080px] aspect-video bg-white rounded-lg overflow-hidden shadow-2xl">
-          <PresentSlide slide={currentSlide} />
-        </div>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentSlide.id}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.05 }}
+            transition={{ duration: 0.3 }}
+            className="w-full h-full max-w-[1920px] max-h-[1080px] aspect-video bg-white rounded-lg overflow-hidden shadow-2xl"
+          >
+            <PresentSlide slide={currentSlide} />
+          </motion.div>
+        </AnimatePresence>
       </div>
 
       {/* Progress */}
@@ -169,54 +179,111 @@ function PresentSlide({ slide }: { slide: Slide }) {
       return (
         <div className={cn(baseStyles, 'items-center justify-center text-center relative overflow-hidden')}>
           <AnimatedGradient 
-            colors={['#3b82f6', '#8b5cf6', '#06b6d4', '#10b981']} 
-            speed={8} 
+            colors={['#0ea5e9', '#6366f1', '#8b5cf6', '#d946ef']} 
+            speed={6} 
             blur="heavy" 
           />
-          <div className="relative z-10">
-            <h1 className="text-7xl font-bold mb-6 text-white drop-shadow-lg">{String(content.title || 'Title')}</h1>
+          <motion.div 
+            className="relative z-10"
+            initial={{ y: 30, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+          >
+            <h1 className="text-7xl font-bold mb-6 text-white drop-shadow-2xl">
+              {String(content.title || 'Title')}
+            </h1>
             {Boolean(content.subtitle) && (
-              <p className="text-3xl text-white/80">{String(content.subtitle)}</p>
+              <motion.p 
+                className="text-3xl text-white/90 font-light"
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.4 }}
+              >
+                {String(content.subtitle)}
+              </motion.p>
             )}
-          </div>
+          </motion.div>
         </div>
       )
 
     case 'content':
       return (
-        <div className={baseStyles}>
-          <h2 className="text-5xl font-bold mb-10">{String(content.title || 'Title')}</h2>
-          <p className="text-3xl text-gray-700 leading-relaxed whitespace-pre-wrap flex-1">
+        <div className={cn(baseStyles, 'bg-gradient-to-br from-slate-50 to-slate-100')}>
+          <motion.h2 
+            className="text-5xl font-bold mb-10 bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent"
+            initial={{ x: -30, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ duration: 0.5 }}
+          >
+            {String(content.title || 'Title')}
+          </motion.h2>
+          <motion.p 
+            className="text-3xl text-slate-600 leading-relaxed whitespace-pre-wrap flex-1"
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+          >
             {String(content.body || '')}
-          </p>
+          </motion.p>
         </div>
       )
 
     case 'two-column':
       return (
-        <div className={baseStyles}>
-          <h2 className="text-5xl font-bold mb-10">{String(content.title || 'Title')}</h2>
+        <div className={cn(baseStyles, 'bg-white')}>
+          <motion.h2 
+            className="text-5xl font-bold mb-10 text-slate-800"
+            initial={{ y: -20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.5 }}
+          >
+            {String(content.title || 'Title')}
+          </motion.h2>
           <div className="flex-1 grid grid-cols-2 gap-16">
-            <div className="text-2xl text-gray-700 whitespace-pre-wrap">
+            <motion.div 
+              className="text-2xl text-slate-700 whitespace-pre-wrap p-8 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl"
+              initial={{ x: -30, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+            >
               {String(content.left || '')}
-            </div>
-            <div className="text-2xl text-gray-700 whitespace-pre-wrap">
+            </motion.div>
+            <motion.div 
+              className="text-2xl text-slate-700 whitespace-pre-wrap p-8 bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl"
+              initial={{ x: 30, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+            >
               {String(content.right || '')}
-            </div>
+            </motion.div>
           </div>
         </div>
       )
 
     case 'bullets':
+      const bullets = (content.bullets as string[]) || []
       return (
-        <div className={baseStyles}>
-          <h2 className="text-5xl font-bold mb-10">{String(content.title || 'Title')}</h2>
+        <div className={cn(baseStyles, 'bg-gradient-to-br from-white to-slate-50')}>
+          <motion.h2 
+            className="text-5xl font-bold mb-10 text-slate-800"
+            initial={{ y: -20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.5 }}
+          >
+            {String(content.title || 'Title')}
+          </motion.h2>
           <ul className="space-y-6 flex-1">
-            {((content.bullets as string[]) || []).map((bullet, i) => (
-              <li key={i} className="text-3xl text-gray-700 flex items-start gap-4">
-                <span className="w-3 h-3 rounded-full bg-blue-500 mt-3 flex-shrink-0" />
+            {bullets.map((bullet, i) => (
+              <motion.li 
+                key={i} 
+                className="text-3xl text-slate-700 flex items-start gap-4"
+                initial={{ x: -40, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ duration: 0.4, delay: 0.1 + i * 0.1 }}
+              >
+                <span className="w-4 h-4 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 mt-2.5 flex-shrink-0 shadow-lg shadow-blue-500/30" />
                 {bullet}
-              </li>
+              </motion.li>
             ))}
           </ul>
         </div>
@@ -224,41 +291,68 @@ function PresentSlide({ slide }: { slide: Slide }) {
 
     case 'quote':
       return (
-        <div className={cn(baseStyles, 'items-center justify-center text-center relative overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800')}>
-          <div className="absolute inset-0 opacity-20">
+        <div className={cn(baseStyles, 'items-center justify-center text-center relative overflow-hidden bg-slate-900')}>
+          <div className="absolute inset-0 opacity-30">
             <AnimatedGradient 
-              colors={['#6366f1', '#8b5cf6', '#a855f7']} 
-              speed={10} 
+              colors={['#6366f1', '#8b5cf6', '#a855f7', '#d946ef']} 
+              speed={8} 
               blur="heavy" 
             />
           </div>
-          <div className="relative z-10">
-            <blockquote className="text-5xl italic text-white max-w-4xl leading-relaxed">
-              &ldquo;{String(content.quote || '')}&rdquo;
+          <motion.div 
+            className="relative z-10"
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.6 }}
+          >
+            <div className="text-6xl text-purple-400 mb-4">&ldquo;</div>
+            <blockquote className="text-4xl italic text-white max-w-4xl leading-relaxed font-light">
+              {String(content.quote || '')}
             </blockquote>
             {Boolean(content.author) && (
-              <p className="text-2xl text-white/70 mt-10">— {String(content.author)}</p>
+              <motion.p 
+                className="text-2xl text-white/70 mt-10"
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.5, delay: 0.4 }}
+              >
+                — {String(content.author)}
+              </motion.p>
             )}
-          </div>
+          </motion.div>
         </div>
       )
 
     case 'image':
       return (
-        <div className={cn(baseStyles, 'items-center justify-center')}>
-          {content.imageUrl ? (
-            <img
-              src={String(content.imageUrl)}
-              alt=""
-              className="max-h-[75%] max-w-full object-contain rounded-xl"
-            />
-          ) : (
-            <div className="w-96 h-64 bg-gray-100 rounded-xl flex items-center justify-center">
-              <ImageIcon className="w-16 h-16 text-gray-300" />
-            </div>
-          )}
+        <div className={cn(baseStyles, 'items-center justify-center bg-slate-50')}>
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.5 }}
+          >
+            {content.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={String(content.imageUrl)}
+                alt=""
+                className="max-h-[75%] max-w-full object-contain rounded-xl shadow-2xl"
+              />
+            ) : (
+              <div className="w-96 h-64 bg-gradient-to-br from-slate-200 to-slate-300 rounded-xl flex items-center justify-center shadow-inner">
+                <ImageIcon className="w-16 h-16 text-slate-400" />
+              </div>
+            )}
+          </motion.div>
           {Boolean(content.caption) && (
-            <p className="text-2xl text-gray-500 mt-8">{String(content.caption)}</p>
+            <motion.p 
+              className="text-2xl text-slate-600 mt-8"
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+            >
+              {String(content.caption)}
+            </motion.p>
           )}
         </div>
       )
