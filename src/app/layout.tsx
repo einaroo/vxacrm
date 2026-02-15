@@ -19,10 +19,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.className} antialiased bg-gray-50`}>
-        <Nav />
-        <main className="max-w-7xl mx-auto px-4 py-6">
-          {children}
-        </main>
+        <div className="flex h-screen">
+          <Nav />
+          <main className="flex-1 overflow-y-auto px-6 py-6">
+            {children}
+          </main>
+        </div>
         <Toaster />
       </body>
     </html>

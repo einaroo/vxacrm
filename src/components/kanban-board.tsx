@@ -26,7 +26,7 @@ function KanbanSkeleton() {
   return (
     <div className="flex gap-4 overflow-x-auto pb-4">
       {[...Array(4)].map((_, colIndex) => (
-        <div key={colIndex} className="flex-shrink-0 w-72">
+        <div key={colIndex} className="flex-1 min-w-[200px]">
           <div className="mb-3 flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-gray-300 animate-pulse" />
             <div className="h-4 w-20 bg-gray-200 rounded animate-pulse" />
@@ -85,7 +85,7 @@ export function KanbanBoard<T extends { id: string }>({
     <DragDropContext onDragEnd={onDragEnd}>
       <div className="flex gap-4 overflow-x-auto pb-4">
         {columns.map((column) => (
-          <div key={column.id} className="flex-shrink-0 w-72">
+          <div key={column.id} className="flex-1 min-w-[200px]">
             <div className="mb-3 flex items-center gap-2">
               <div className={cn('w-2 h-2 rounded-full', column.color)} />
               <h3 className="font-medium text-sm text-gray-700">{column.title}</h3>
