@@ -5,6 +5,14 @@ import { LiveProvider, LivePreview, LiveError } from 'react-live'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
+// Fancy Components
+import AnimatedGradient from '@/components/fancy/background/animated-gradient-with-svg'
+import Float from '@/components/fancy/blocks/float'
+import SimpleMarquee from '@/components/fancy/blocks/simple-marquee'
+import Typewriter from '@/components/fancy/text/typewriter'
+import TextRotate from '@/components/fancy/text/text-rotate'
+import LetterSwap from '@/components/fancy/text/letter-swap-forward-anim'
+
 // Scope: all components/utilities available in slide code
 const scope = {
   // React
@@ -15,6 +23,14 @@ const scope = {
   // Motion
   motion,
   AnimatePresence,
+  
+  // Fancy Components
+  AnimatedGradient,
+  Float,
+  SimpleMarquee,
+  Typewriter,
+  TextRotate,
+  LetterSwap,
   
   // Utilities
   cn,
@@ -84,18 +100,20 @@ export const DEFAULT_SLIDE_CODE = `<motion.div
 // Brand style starter templates
 export const BRAND_TEMPLATES = {
   professional: `<motion.div 
-  className="w-full h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center p-16"
+  className="w-full h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center p-16 relative overflow-hidden"
   initial={{ opacity: 0 }}
   animate={{ opacity: 1 }}
 >
-  <motion.h1 
-    className="text-6xl font-light tracking-tight text-white mb-6"
-    initial={{ y: 30, opacity: 0 }}
-    animate={{ y: 0, opacity: 1 }}
-    transition={{ duration: 0.8, ease: "easeOut" }}
-  >
-    Professional Title
-  </motion.h1>
+  <Float speed={0.2} amplitude={[10, 8, 0]} rotationRange={[2, 2, 1]}>
+    <motion.h1 
+      className="text-6xl font-light tracking-tight text-white mb-6"
+      initial={{ y: 30, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ duration: 0.8, ease: "easeOut" }}
+    >
+      Professional Title
+    </motion.h1>
+  </Float>
   <motion.div 
     className="w-24 h-1 bg-blue-500 mb-8"
     initial={{ scaleX: 0 }}
@@ -117,15 +135,11 @@ export const BRAND_TEMPLATES = {
   initial={{ opacity: 0 }}
   animate={{ opacity: 1 }}
 >
-  <motion.div 
-    className="absolute inset-0 bg-gradient-to-r from-orange-500 via-red-500 to-pink-500 opacity-20"
-    animate={{ 
-      backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
-    }}
-    transition={{ duration: 5, repeat: Infinity }}
-  />
+  <div className="absolute inset-0">
+    <AnimatedGradient colors={["#f97316", "#ef4444", "#ec4899"]} speed={4} blur="heavy" />
+  </div>
   <motion.h1 
-    className="text-8xl font-black text-white uppercase tracking-tighter relative z-10"
+    className="text-8xl font-black text-white uppercase tracking-tighter relative z-10 drop-shadow-2xl"
     initial={{ scale: 0.5, opacity: 0 }}
     animate={{ scale: 1, opacity: 1 }}
     transition={{ type: "spring", damping: 10 }}
@@ -143,28 +157,23 @@ export const BRAND_TEMPLATES = {
 </motion.div>`,
 
   creative: `<motion.div 
-  className="w-full h-full bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-700 flex flex-col items-center justify-center p-12 relative"
+  className="w-full h-full flex flex-col items-center justify-center p-12 relative overflow-hidden"
   initial={{ opacity: 0 }}
   animate={{ opacity: 1 }}
 >
-  <motion.div 
-    className="absolute top-20 left-20 w-32 h-32 bg-pink-400/30 rounded-full blur-3xl"
-    animate={{ scale: [1, 1.2, 1], x: [0, 20, 0] }}
-    transition={{ duration: 4, repeat: Infinity }}
-  />
-  <motion.div 
-    className="absolute bottom-20 right-20 w-40 h-40 bg-cyan-400/30 rounded-full blur-3xl"
-    animate={{ scale: [1.2, 1, 1.2], y: [0, -20, 0] }}
-    transition={{ duration: 5, repeat: Infinity }}
-  />
-  <motion.h1 
-    className="text-6xl font-bold text-white relative z-10"
-    initial={{ rotateX: 90, opacity: 0 }}
-    animate={{ rotateX: 0, opacity: 1 }}
-    transition={{ duration: 0.8 }}
-  >
-    ✨ Creative
-  </motion.h1>
+  <div className="absolute inset-0">
+    <AnimatedGradient colors={["#8b5cf6", "#7c3aed", "#6366f1", "#ec4899"]} speed={6} blur="medium" />
+  </div>
+  <Float speed={0.3} amplitude={[15, 12, 0]} rotationRange={[3, 3, 2]}>
+    <motion.h1 
+      className="text-6xl font-bold text-white relative z-10 drop-shadow-lg"
+      initial={{ rotateX: 90, opacity: 0 }}
+      animate={{ rotateX: 0, opacity: 1 }}
+      transition={{ duration: 0.8 }}
+    >
+      ✨ Creative
+    </motion.h1>
+  </Float>
   <motion.p 
     className="text-xl text-white/80 mt-6 relative z-10"
     initial={{ y: 20, opacity: 0 }}
@@ -180,14 +189,11 @@ export const BRAND_TEMPLATES = {
   initial={{ opacity: 0 }}
   animate={{ opacity: 1 }}
 >
-  <motion.h1 
+  <Typewriter 
+    text="Minimal"
+    speed={80}
     className="text-5xl font-extralight text-slate-900 tracking-wide"
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    transition={{ duration: 1.5 }}
-  >
-    Minimal
-  </motion.h1>
+  />
   <motion.div 
     className="w-8 h-px bg-slate-300 my-8"
     initial={{ scaleX: 0 }}
@@ -216,14 +222,16 @@ export const BRAND_TEMPLATES = {
     animate={{ opacity: 1 }}
     transition={{ delay: 0.5 }}
   />
-  <motion.h1 
-    className="text-6xl font-mono font-bold text-emerald-400 relative z-10"
-    initial={{ y: -30, opacity: 0 }}
-    animate={{ y: 0, opacity: 1 }}
-    transition={{ type: "spring" }}
-  >
-    {"<Tech/>"}
-  </motion.h1>
+  <Float speed={0.25} amplitude={[8, 6, 0]} rotationRange={[1, 1, 0]}>
+    <motion.h1 
+      className="text-6xl font-mono font-bold text-emerald-400 relative z-10"
+      initial={{ y: -30, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ type: "spring" }}
+    >
+      {"<Tech/>"}
+    </motion.h1>
+  </Float>
   <motion.p 
     className="text-lg text-slate-500 font-mono mt-6 relative z-10"
     initial={{ opacity: 0 }}
