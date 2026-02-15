@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import { X, ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react'
+import AnimatedGradient from '@/components/fancy/background/animated-gradient-with-svg'
 
 interface Slide {
   id: string
@@ -166,11 +167,18 @@ function PresentSlide({ slide }: { slide: Slide }) {
   switch (slide.template) {
     case 'title':
       return (
-        <div className={cn(baseStyles, 'items-center justify-center text-center')}>
-          <h1 className="text-7xl font-bold mb-6">{String(content.title || 'Title')}</h1>
-          {Boolean(content.subtitle) && (
-            <p className="text-3xl text-gray-500">{String(content.subtitle)}</p>
-          )}
+        <div className={cn(baseStyles, 'items-center justify-center text-center relative overflow-hidden')}>
+          <AnimatedGradient 
+            colors={['#3b82f6', '#8b5cf6', '#06b6d4', '#10b981']} 
+            speed={8} 
+            blur="heavy" 
+          />
+          <div className="relative z-10">
+            <h1 className="text-7xl font-bold mb-6 text-white drop-shadow-lg">{String(content.title || 'Title')}</h1>
+            {Boolean(content.subtitle) && (
+              <p className="text-3xl text-white/80">{String(content.subtitle)}</p>
+            )}
+          </div>
         </div>
       )
 
@@ -216,13 +224,22 @@ function PresentSlide({ slide }: { slide: Slide }) {
 
     case 'quote':
       return (
-        <div className={cn(baseStyles, 'items-center justify-center text-center')}>
-          <blockquote className="text-5xl italic text-gray-700 max-w-4xl leading-relaxed">
-            &ldquo;{String(content.quote || '')}&rdquo;
-          </blockquote>
-          {Boolean(content.author) && (
-            <p className="text-2xl text-gray-500 mt-10">— {String(content.author)}</p>
-          )}
+        <div className={cn(baseStyles, 'items-center justify-center text-center relative overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800')}>
+          <div className="absolute inset-0 opacity-20">
+            <AnimatedGradient 
+              colors={['#6366f1', '#8b5cf6', '#a855f7']} 
+              speed={10} 
+              blur="heavy" 
+            />
+          </div>
+          <div className="relative z-10">
+            <blockquote className="text-5xl italic text-white max-w-4xl leading-relaxed">
+              &ldquo;{String(content.quote || '')}&rdquo;
+            </blockquote>
+            {Boolean(content.author) && (
+              <p className="text-2xl text-white/70 mt-10">— {String(content.author)}</p>
+            )}
+          </div>
         </div>
       )
 

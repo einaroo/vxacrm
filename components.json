@@ -19,7 +19,5 @@
     "lib": "@/lib",
     "hooks": "@/hooks"
   },
-  "registries": {
-    "@fancy": "https://www.fancycomponents.dev/r"
-  }
+  "registries": {}
 }
