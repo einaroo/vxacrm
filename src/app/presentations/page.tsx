@@ -61,7 +61,7 @@ export default function PresentationsPage() {
   const [selectedPresentation, setSelectedPresentation] = useState<Presentation | null>(null)
   const [generating, setGenerating] = useState(false)
   const [scriptInput, setScriptInput] = useState('')
-  const [brandStyle, setBrandStyle] = useState('professional')
+  const [mode, setMode] = useState<'dark' | 'light'>('dark')
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -194,7 +194,7 @@ export default function PresentationsPage() {
       const response = await fetch('/api/presentations/generate-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ script: scriptInput, brandStyle }),
+        body: JSON.stringify({ script: scriptInput, mode }),
       })
       
       if (!response.ok) {
@@ -224,7 +224,7 @@ export default function PresentationsPage() {
         .from('presentations')
         .insert({
           title,
-          description: `Generated with ${brandStyle} style`,
+          description: `Generated in ${mode} mode`,
           slide_count: slides.length,
         })
         .select()
@@ -454,38 +454,42 @@ export default function PresentationsPage() {
             <DialogTitle>Generate Presentation from Script</DialogTitle>
           </DialogHeader>
           <div className="py-4 space-y-6">
-            {/* Brand Style Selection */}
+            {/* Mode Selection */}
             <div>
-              <Label className="text-sm font-medium mb-3 block">Brand Style</Label>
-              <div className="grid grid-cols-5 gap-2">
-                {[
-                  { id: 'professional', label: 'Professional', colors: ['#0ea5e9', '#3b82f6', '#6366f1'] },
-                  { id: 'bold', label: 'Bold', colors: ['#dc2626', '#ea580c', '#f59e0b'] },
-                  { id: 'creative', label: 'Creative', colors: ['#8b5cf6', '#a855f7', '#d946ef'] },
-                  { id: 'minimal', label: 'Minimal', colors: ['#18181b', '#71717a', '#a1a1aa'] },
-                  { id: 'tech', label: 'Tech', colors: ['#06b6d4', '#0891b2', '#0e7490'] },
-                ].map((style) => (
-                  <button
-                    key={style.id}
-                    onClick={() => setBrandStyle(style.id)}
-                    className={`p-3 rounded-lg border-2 transition-all ${
-                      brandStyle === style.id 
-                        ? 'border-blue-500 bg-blue-50' 
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <div className="flex gap-1 mb-2 justify-center">
-                      {style.colors.map((color, i) => (
-                        <div 
-                          key={i} 
-                          className="w-4 h-4 rounded-full" 
-                          style={{ backgroundColor: color }}
-                        />
-                      ))}
+              <Label className="text-sm font-medium mb-3 block">Mode</Label>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setMode('dark')}
+                  className={`flex-1 p-4 rounded-lg border-2 transition-all ${
+                    mode === 'dark' 
+                      ? 'border-blue-500 bg-slate-900 text-white' 
+                      : 'border-gray-200 hover:border-gray-300 bg-slate-800 text-slate-400'
+                  }`}
+                >
+                  <div className="flex items-center justify-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-700 to-black border border-slate-600" />
+                    <div>
+                      <div className="font-medium">Dark Mode</div>
+                      <div className="text-xs opacity-70">Dramatic, bold, glowing accents</div>
                     </div>
-                    <span className="text-xs font-medium">{style.label}</span>
-                  </button>
-                ))}
+                  </div>
+                </button>
+                <button
+                  onClick={() => setMode('light')}
+                  className={`flex-1 p-4 rounded-lg border-2 transition-all ${
+                    mode === 'light' 
+                      ? 'border-blue-500 bg-white' 
+                      : 'border-gray-200 hover:border-gray-300 bg-slate-50'
+                  }`}
+                >
+                  <div className="flex items-center justify-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-white to-slate-100 border border-slate-200" />
+                    <div>
+                      <div className="font-medium">Light Mode</div>
+                      <div className="text-xs text-slate-500">Clean, minimal, subtle shadows</div>
+                    </div>
+                  </div>
+                </button>
               </div>
             </div>
 

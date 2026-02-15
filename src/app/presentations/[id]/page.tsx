@@ -21,13 +21,6 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
   ArrowLeft,
   Plus,
   Trash2,
@@ -45,7 +38,7 @@ import {
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import dynamic from 'next/dynamic'
-import { SlideRenderer, DEFAULT_SLIDE_CODE, BRAND_TEMPLATES } from '@/components/presentations/SlideRenderer'
+import { SlideRenderer, DEFAULT_SLIDE_CODE } from '@/components/presentations/SlideRenderer'
 
 // Dynamic import Monaco to avoid SSR issues
 const MonacoEditor = dynamic(
@@ -68,15 +61,7 @@ interface Presentation {
   slide_count: number
 }
 
-type BrandStyle = 'professional' | 'bold' | 'creative' | 'minimal' | 'tech'
-
-const BRAND_STYLES: { id: BrandStyle; label: string; description: string }[] = [
-  { id: 'professional', label: 'Professional', description: 'Clean, corporate, trustworthy' },
-  { id: 'bold', label: 'Bold', description: 'High contrast, impactful, energetic' },
-  { id: 'creative', label: 'Creative', description: 'Playful gradients, expressive' },
-  { id: 'minimal', label: 'Minimal', description: 'White space, elegant, refined' },
-  { id: 'tech', label: 'Tech', description: 'Cyber, grid patterns, monospace' },
-]
+type Mode = 'dark' | 'light'
 
 export default function PresentationEditorPage() {
   const params = useParams()
@@ -93,7 +78,7 @@ export default function PresentationEditorPage() {
   // Script generation state
   const [scriptDialogOpen, setScriptDialogOpen] = useState(false)
   const [script, setScript] = useState('')
-  const [brandStyle, setBrandStyle] = useState<BrandStyle>('professional')
+  const [mode, setMode] = useState<Mode>('dark')
   const [generating, setGenerating] = useState(false)
 
   const fetchData = useCallback(async () => {
@@ -148,9 +133,9 @@ export default function PresentationEditorPage() {
     setSaving(false)
   }
 
-  const addSlide = async (style?: BrandStyle) => {
+  const addSlide = async () => {
     const newOrder = slides.length
-    const code = style ? BRAND_TEMPLATES[style] : DEFAULT_SLIDE_CODE
+    const code = DEFAULT_SLIDE_CODE
 
     const { data } = await supabase
       .from('presentation_slides')
@@ -227,12 +212,12 @@ export default function PresentationEditorPage() {
     
     setGenerating(true)
     try {
-      console.log('[Generate] Starting generation with brandStyle:', brandStyle)
+      console.log('[Generate] Starting generation with mode:', mode)
       
       const response = await fetch('/api/presentations/generate-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ script, brandStyle }),
+        body: JSON.stringify({ script, mode }),
       })
       
       if (!response.ok) {
@@ -472,13 +457,6 @@ export default function PresentationEditorPage() {
                 <FileText className="w-4 h-4 mr-2" />
                 Blank Slide
               </DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-slate-700" />
-              {BRAND_STYLES.map((style) => (
-                <DropdownMenuItem key={style.id} onClick={() => addSlide(style.id)}>
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  {style.label}
-                </DropdownMenuItem>
-              ))}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -547,22 +525,37 @@ export default function PresentationEditorPage() {
           
           <div className="space-y-4">
             <div>
-              <Label className="text-slate-300">Brand Style</Label>
-              <Select value={brandStyle} onValueChange={(v) => setBrandStyle(v as BrandStyle)}>
-                <SelectTrigger className="mt-1 bg-slate-800 border-slate-700">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-800 border-slate-700">
-                  {BRAND_STYLES.map((style) => (
-                    <SelectItem key={style.id} value={style.id}>
-                      <div>
-                        <div className="font-medium">{style.label}</div>
-                        <div className="text-xs text-slate-400">{style.description}</div>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-slate-300">Mode</Label>
+              <div className="flex gap-3 mt-2">
+                <button
+                  onClick={() => setMode('dark')}
+                  className={cn(
+                    'flex-1 p-3 rounded-lg border-2 transition-all',
+                    mode === 'dark' 
+                      ? 'border-blue-500 bg-slate-800' 
+                      : 'border-slate-700 hover:border-slate-600'
+                  )}
+                >
+                  <div className="text-center">
+                    <div className="w-6 h-6 mx-auto mb-2 rounded-full bg-gradient-to-br from-slate-700 to-black border border-slate-600" />
+                    <div className="text-sm font-medium">Dark</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setMode('light')}
+                  className={cn(
+                    'flex-1 p-3 rounded-lg border-2 transition-all',
+                    mode === 'light' 
+                      ? 'border-blue-500 bg-slate-800' 
+                      : 'border-slate-700 hover:border-slate-600'
+                  )}
+                >
+                  <div className="text-center">
+                    <div className="w-6 h-6 mx-auto mb-2 rounded-full bg-gradient-to-br from-white to-slate-200 border border-slate-300" />
+                    <div className="text-sm font-medium">Light</div>
+                  </div>
+                </button>
+              </div>
             </div>
             
             <div>
