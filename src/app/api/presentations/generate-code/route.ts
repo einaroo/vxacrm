@@ -5,215 +5,296 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
-// Available Fancy Components for code generation
-const FANCY_COMPONENTS = `
-AVAILABLE FANCY COMPONENTS (use these for visual impact):
+const SYSTEM_PROMPT = `You are an elite presentation designer creating React slides with Framer Motion animations and Fancy UI components.
 
-1. AnimatedGradient - Animated gradient background
-   <AnimatedGradient colors={["#color1", "#color2", "#color3"]} speed={5} blur="heavy" />
-   Props: colors (array), speed (number 1-10), blur ("light"|"medium"|"heavy")
+## AVAILABLE COMPONENTS (USE THESE!)
 
-2. Float - Floating animation wrapper
-   <Float speed={0.3} amplitude={[15, 10, 0]} rotationRange={[3, 2, 1]} timeOffset={0}>
-     <div>content</div>
-   </Float>
-   Props: speed (0.1-1), amplitude ([x,y,z]), rotationRange ([x,y,z]), timeOffset (number)
+### AnimatedGradient - Animated gradient background
+\`\`\`jsx
+<div className="absolute inset-0">
+  <AnimatedGradient colors={["#f97316", "#ef4444", "#ec4899"]} speed={5} blur="heavy" />
+</div>
+\`\`\`
 
-3. Typewriter - Typewriter text effect
-   <Typewriter text="Your text" speed={50} className="..." />
-   Props: text (string), speed (ms per char), className
+### Float - Makes any element float with subtle motion (USE FOR VISUAL ELEMENTS!)
+\`\`\`jsx
+<Float speed={0.3} amplitude={[15, 10, 0]} rotationRange={[3, 2, 1]} timeOffset={0}>
+  <div className="w-32 h-32 rounded-full bg-white/10 blur-2xl" />
+</Float>
+\`\`\`
 
-4. TextRotate - Rotating text alternatives
-   <TextRotate texts={["First", "Second", "Third"]} className="..." />
-   Props: texts (array), className
+### Typewriter - Animated text typing effect (USE FOR HEADLINES!)
+\`\`\`jsx
+<Typewriter text="Your headline here" speed={40} className="text-6xl font-bold text-white" />
+\`\`\`
 
-5. LetterSwap - Letter swap animation on hover
-   <LetterSwap text="Hover me" className="..." />
-   Props: text (string), className
+### TextRotate - Cycling through text options
+\`\`\`jsx
+<TextRotate texts={["Fast", "Smart", "Powerful"]} className="text-4xl font-bold text-orange-400" />
+\`\`\`
 
-6. SimpleMarquee - Scrolling marquee
-   <SimpleMarquee speed={50} direction="left">
-     <div>content</div>
-   </SimpleMarquee>
-   Props: speed (number), direction ("left"|"right")
-`
+### SimpleMarquee - Scrolling text banner
+\`\`\`jsx
+<SimpleMarquee speed={40} direction="left">
+  <span className="text-white/50 text-xl mx-8">INNOVATION</span>
+  <span className="text-white/50 text-xl mx-8">CREATIVITY</span>
+</SimpleMarquee>
+\`\`\`
 
-const BRAND_STYLE_SYSTEMS = {
+## VISUAL ELEMENTS TO INCLUDE
+
+### Floating Orbs (Background decoration)
+\`\`\`jsx
+{/* Floating orbs for visual depth */}
+<Float speed={0.2} amplitude={[20, 15, 0]} rotationRange={[0, 0, 5]} timeOffset={0}>
+  <div className="absolute top-20 left-20 w-64 h-64 rounded-full bg-orange-500/20 blur-3xl" />
+</Float>
+<Float speed={0.15} amplitude={[15, 20, 0]} rotationRange={[0, 0, 3]} timeOffset={2}>
+  <div className="absolute bottom-20 right-20 w-48 h-48 rounded-full bg-pink-500/20 blur-3xl" />
+</Float>
+\`\`\`
+
+### Accent Lines and Shapes
+\`\`\`jsx
+<motion.div 
+  className="absolute left-0 top-1/2 w-1 h-32 bg-gradient-to-b from-transparent via-orange-500 to-transparent"
+  initial={{ scaleY: 0 }} animate={{ scaleY: 1 }} transition={{ delay: 0.5 }}
+/>
+\`\`\`
+
+### Icon/Emoji Accents
+\`\`\`jsx
+<Float speed={0.4} amplitude={[5, 8, 0]} rotationRange={[5, 5, 10]}>
+  <span className="text-6xl">🚀</span>
+</Float>
+\`\`\`
+
+## LAYOUT PATTERNS
+
+### Title Slide - Dramatic entrance
+- Large headline with Typewriter effect
+- Floating decorative orbs
+- Accent line or shape
+- Subtitle with fade-in
+
+### Content Slide - Visual hierarchy
+- Title at top with motion entrance
+- Key message large and centered OR
+- Split layout with visual on one side
+- Floating accent elements
+
+### Bullet Points - Staggered reveal
+- Each bullet with delay
+- Icons or numbers with Float effect
+- Accent color for bullets
+
+### Quote Slide - Dramatic
+- Large quote marks as decorative elements
+- Typewriter for quote text
+- Author with fade-in
+
+### CTA/Closing - Impactful
+- Bold headline
+- TextRotate for dynamic element
+- Floating decorations
+
+## RULES
+
+1. ALWAYS use at least 2-3 Fancy components per slide (Float, Typewriter, AnimatedGradient, etc.)
+2. ALWAYS add visual decorations (floating orbs, accent lines, shapes)
+3. Use motion.div with initial/animate for all text entrances
+4. Stagger animations with transition={{ delay: X }}
+5. Create visual depth with layered elements (z-index, blur)
+6. Make headlines LARGE (text-6xl to text-8xl)
+7. Use generous spacing (p-16, gap-8)
+8. Root element MUST have "w-full h-full relative overflow-hidden"
+
+## OUTPUT FORMAT
+
+Return JSON:
+{
+  "slides": [
+    {
+      "code": "<motion.div className='w-full h-full relative overflow-hidden'>...</motion.div>",
+      "spec": { "slide_title": "...", "layout": "..." }
+    }
+  ]
+}
+
+NO imports. NO exports. Just pure JSX starting with <motion.div>.`
+
+const STYLE_CONFIGS = {
   professional: {
-    style_name: "Professional",
-    intent: "Establish credibility, trust, and expertise",
-    visual_tone: {
-      mood: "Confident, polished, authoritative",
-      energy: "Calm, measured",
-      emotional_signal: "Trust, reliability, competence"
-    },
-    color_system: {
-      backgrounds: ["slate-900", "slate-800", "slate-950"],
-      color_blocks: ["blue-500", "blue-600", "slate-700"],
-      text: { primary: "white", secondary: "slate-300", accent: "blue-400" },
-      rules: "Use blue as accent, slate for depth, high contrast for readability"
-    },
-    typography_character: {
-      headlines: "font-light tracking-tight, large scale (text-5xl to text-7xl)",
-      body: "font-normal text-xl, generous line-height",
-      hierarchy: "Clear size steps, accent color for emphasis"
-    },
-    composition: {
-      layout_types: ["centered-focal", "split-content", "stacked-hierarchy"],
-      spacing: "Generous padding (p-16), clear breathing room",
-      grid: "Simple, balanced, not crowded"
-    },
-    fancy_components: ["Float for subtle movement", "AnimatedGradient for backgrounds", "Typewriter for reveals"]
+    colors: '["#0ea5e9", "#3b82f6", "#6366f1"]',
+    bgClass: 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900',
+    textPrimary: 'text-white',
+    textSecondary: 'text-slate-300',
+    accent: 'blue-500',
+    orbColors: 'bg-blue-500/20, bg-indigo-500/20',
+    fonts: 'font-light tracking-tight for headlines, font-normal for body',
+    vibe: 'Sophisticated, clean, trustworthy. Subtle Float movements, elegant Typewriter reveals.'
   },
   bold: {
-    style_name: "Bold",
-    intent: "Make impact, energize, command attention",
-    visual_tone: {
-      mood: "Powerful, dynamic, unapologetic",
-      energy: "High, explosive",
-      emotional_signal: "Excitement, confidence, disruption"
-    },
-    color_system: {
-      backgrounds: ["black", "slate-950"],
-      color_blocks: ["orange-500", "red-500", "pink-500", "yellow-400"],
-      text: { primary: "white", secondary: "orange-400", accent: "yellow-400" },
-      rules: "High contrast, warm accent colors, dramatic gradients"
-    },
-    typography_character: {
-      headlines: "font-black uppercase tracking-tighter, massive scale (text-7xl to text-9xl)",
-      body: "font-bold text-2xl",
-      hierarchy: "Extreme contrast, headlines dominate"
-    },
-    composition: {
-      layout_types: ["centered-impact", "diagonal-energy", "full-bleed"],
-      spacing: "Tight for tension, explosive from center",
-      grid: "Break the grid, asymmetric allowed"
-    },
-    fancy_components: ["AnimatedGradient with warm colors", "Float with higher amplitude", "SimpleMarquee for energy"]
+    colors: '["#f97316", "#ef4444", "#ec4899"]',
+    bgClass: 'bg-black',
+    textPrimary: 'text-white',
+    textSecondary: 'text-orange-400',
+    accent: 'orange-500',
+    orbColors: 'bg-orange-500/30, bg-pink-500/30, bg-red-500/30',
+    fonts: 'font-black uppercase tracking-tighter for headlines',
+    vibe: 'High energy, impactful, disruptive. Aggressive Float amplitudes, fast Typewriter, multiple floating orbs.'
   },
   creative: {
-    style_name: "Creative",
-    intent: "Inspire, delight, express artistry",
-    visual_tone: {
-      mood: "Playful, imaginative, expressive",
-      energy: "Flowing, organic",
-      emotional_signal: "Wonder, creativity, possibility"
-    },
-    color_system: {
-      backgrounds: ["violet-600", "purple-600", "indigo-700"],
-      color_blocks: ["pink-400", "cyan-400", "emerald-400", "amber-400"],
-      text: { primary: "white", secondary: "white/80", accent: "pink-300" },
-      rules: "Rich gradients, complementary pops, allow color play"
-    },
-    typography_character: {
-      headlines: "font-bold, allow playful sizing (text-5xl to text-7xl)",
-      body: "font-medium text-xl",
-      hierarchy: "Expressive, can break rules for effect"
-    },
-    composition: {
-      layout_types: ["organic-flow", "scattered-elements", "layered-depth"],
-      spacing: "Varied, creates rhythm",
-      grid: "Loose, organic, overlapping allowed"
-    },
-    fancy_components: ["AnimatedGradient heavily", "Float with varied speeds", "TextRotate for playfulness", "Typewriter for reveals"]
+    colors: '["#8b5cf6", "#7c3aed", "#ec4899", "#06b6d4"]',
+    bgClass: 'bg-gradient-to-br from-violet-900 via-purple-900 to-indigo-900',
+    textPrimary: 'text-white',
+    textSecondary: 'text-purple-200',
+    accent: 'pink-400',
+    orbColors: 'bg-pink-500/30, bg-cyan-500/30, bg-purple-500/30',
+    fonts: 'font-bold for headlines, playful sizing',
+    vibe: 'Playful, expressive, artistic. Multiple floating elements, color variety, emoji accents allowed.'
   },
   minimal: {
-    style_name: "Minimal",
-    intent: "Communicate with clarity, elegant simplicity",
-    visual_tone: {
-      mood: "Calm, refined, sophisticated",
-      energy: "Low, intentional",
-      emotional_signal: "Clarity, focus, premium quality"
-    },
-    color_system: {
-      backgrounds: ["white", "slate-50", "neutral-100"],
-      color_blocks: ["slate-900", "slate-800"],
-      text: { primary: "slate-900", secondary: "slate-500", accent: "slate-700" },
-      rules: "Maximum 2-3 colors, embrace white space"
-    },
-    typography_character: {
-      headlines: "font-extralight tracking-wide (text-4xl to text-6xl)",
-      body: "font-light text-lg",
-      hierarchy: "Subtle, size and weight only"
-    },
-    composition: {
-      layout_types: ["centered-minimal", "asymmetric-balance", "single-focal"],
-      spacing: "Maximum white space, let content breathe",
-      grid: "Strict, precise alignment"
-    },
-    fancy_components: ["Typewriter for slow reveals", "Float with minimal amplitude", "Avoid heavy animations"]
+    colors: '["#18181b", "#71717a"]',
+    bgClass: 'bg-white',
+    textPrimary: 'text-slate-900',
+    textSecondary: 'text-slate-500',
+    accent: 'slate-900',
+    orbColors: 'bg-slate-200/50',
+    fonts: 'font-extralight tracking-wide for headlines',
+    vibe: 'Elegant simplicity, maximum whitespace. Subtle Float, slow Typewriter, minimal decorations.'
   },
   tech: {
-    style_name: "Tech",
-    intent: "Convey innovation, precision, cutting-edge",
-    visual_tone: {
-      mood: "Futuristic, precise, intelligent",
-      energy: "Electric, focused",
-      emotional_signal: "Innovation, expertise, forward-thinking"
-    },
-    color_system: {
-      backgrounds: ["slate-950", "slate-900", "black"],
-      color_blocks: ["emerald-500", "cyan-500", "violet-500"],
-      text: { primary: "emerald-400", secondary: "slate-400", accent: "cyan-400" },
-      rules: "Dark mode, neon accents, terminal aesthetics"
-    },
-    typography_character: {
-      headlines: "font-mono font-bold (text-5xl to text-7xl)",
-      body: "font-mono text-lg",
-      hierarchy: "Code-like, systematic"
-    },
-    composition: {
-      layout_types: ["grid-based", "terminal-style", "data-driven"],
-      spacing: "Systematic, grid-aligned",
-      grid: "Strict grid lines visible as design element"
-    },
-    fancy_components: ["Grid background patterns", "AnimatedGradient with cool colors", "Typewriter for code effect", "Float for data elements"]
+    colors: '["#10b981", "#06b6d4", "#8b5cf6"]',
+    bgClass: 'bg-slate-950',
+    textPrimary: 'text-emerald-400',
+    textSecondary: 'text-slate-400',
+    accent: 'emerald-500',
+    orbColors: 'bg-emerald-500/20, bg-cyan-500/20',
+    fonts: 'font-mono font-bold for headlines',
+    vibe: 'Futuristic, techy, precise. Grid patterns as backgrounds, terminal aesthetics, glowing accents.'
   }
 }
 
-const SYSTEM_PROMPT = `You are a presentation design AI that creates detailed slide specifications and then converts them to React + Tailwind CSS + Framer Motion code.
-
-YOUR PROCESS:
-1. First, generate a detailed JSON specification for EVERY slide in the presentation
-2. Then, convert each specification to working React/JSX code
-3. Maintain STRICT visual consistency across ALL slides
-
-${FANCY_COMPONENTS}
-
-SLIDE SPECIFICATION SCHEMA (generate this for each slide):
-{
-  "slide_number": number,
-  "slide_title": string,
-  "copy": {
-    "headline": string | null,
-    "subheadline": string | null,
-    "body": string | null,
-    "bullets": string[] | null,
-    "footer": string | null
-  },
-  "visual_description": string (describe the visual intent),
-  "layout_type": "title-centered" | "content-left" | "split-two-column" | "bullets-list" | "quote-centered" | "data-showcase" | "image-focus",
-  "fancy_components": string[] (which fancy components to use),
-  "animation_strategy": string (describe entrance animations)
+const EXAMPLE_SLIDES = {
+  bold: [
+    {
+      type: 'title',
+      code: `<motion.div className="w-full h-full relative overflow-hidden bg-black flex items-center justify-center">
+  {/* Animated gradient background */}
+  <div className="absolute inset-0">
+    <AnimatedGradient colors={["#f97316", "#ef4444", "#ec4899"]} speed={5} blur="heavy" />
+  </div>
+  
+  {/* Floating orbs for depth */}
+  <Float speed={0.2} amplitude={[25, 20, 0]} rotationRange={[0, 0, 5]} timeOffset={0}>
+    <div className="absolute top-10 left-10 w-72 h-72 rounded-full bg-orange-500/30 blur-3xl" />
+  </Float>
+  <Float speed={0.15} amplitude={[20, 25, 0]} rotationRange={[0, 0, 3]} timeOffset={1.5}>
+    <div className="absolute bottom-10 right-10 w-64 h-64 rounded-full bg-pink-500/30 blur-3xl" />
+  </Float>
+  <Float speed={0.25} amplitude={[15, 15, 0]} rotationRange={[0, 0, 8]} timeOffset={3}>
+    <div className="absolute top-1/2 right-1/4 w-48 h-48 rounded-full bg-red-500/20 blur-3xl" />
+  </Float>
+  
+  {/* Content */}
+  <div className="relative z-10 text-center px-16">
+    <motion.div
+      initial={{ scale: 0.8, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={{ type: "spring", damping: 10 }}
+    >
+      <Float speed={0.3} amplitude={[5, 8, 0]} rotationRange={[2, 2, 3]}>
+        <h1 className="text-8xl font-black text-white uppercase tracking-tighter drop-shadow-2xl">
+          VOI × VXA
+        </h1>
+      </Float>
+    </motion.div>
+    
+    <motion.div 
+      className="h-1 w-48 mx-auto my-8 bg-gradient-to-r from-orange-500 via-red-500 to-pink-500"
+      initial={{ scaleX: 0 }}
+      animate={{ scaleX: 1 }}
+      transition={{ delay: 0.5, duration: 0.8 }}
+    />
+    
+    <motion.p 
+      className="text-2xl text-orange-400 font-bold"
+      initial={{ y: 20, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ delay: 0.7 }}
+    >
+      Validate Creative in Sweden. Scale Globally.
+    </motion.p>
+  </div>
+</motion.div>`
+    },
+    {
+      type: 'problem',
+      code: `<motion.div className="w-full h-full relative overflow-hidden bg-black flex items-center">
+  <div className="absolute inset-0">
+    <AnimatedGradient colors={["#f97316", "#ef4444", "#ec4899"]} speed={5} blur="heavy" />
+  </div>
+  
+  <Float speed={0.2} amplitude={[20, 15, 0]} rotationRange={[0, 0, 5]} timeOffset={0}>
+    <div className="absolute top-20 right-20 w-56 h-56 rounded-full bg-red-500/30 blur-3xl" />
+  </Float>
+  <Float speed={0.18} amplitude={[15, 20, 0]} rotationRange={[0, 0, 3]} timeOffset={2}>
+    <div className="absolute bottom-20 left-20 w-48 h-48 rounded-full bg-orange-500/30 blur-3xl" />
+  </Float>
+  
+  {/* Accent line */}
+  <motion.div 
+    className="absolute left-16 top-0 w-1 h-full bg-gradient-to-b from-transparent via-orange-500 to-transparent"
+    initial={{ scaleY: 0 }} 
+    animate={{ scaleY: 1 }} 
+    transition={{ duration: 1 }}
+  />
+  
+  <div className="relative z-10 px-24 max-w-5xl">
+    <motion.h2 
+      className="text-7xl font-black text-white uppercase tracking-tighter mb-8"
+      initial={{ x: -50, opacity: 0 }}
+      animate={{ x: 0, opacity: 1 }}
+    >
+      The Problem
+    </motion.h2>
+    
+    <motion.p 
+      className="text-3xl text-white/90 mb-12 font-light"
+      initial={{ x: -30, opacity: 0 }}
+      animate={{ x: 0, opacity: 1 }}
+      transition={{ delay: 0.2 }}
+    >
+      You know what creative <span className="text-orange-400 font-bold">might</span> work.
+      <br />You don't know what <span className="text-red-400 font-bold">will</span> work.
+    </motion.p>
+    
+    <div className="space-y-4">
+      {[
+        { icon: "💸", text: "Paid ads = budget burned to learn" },
+        { icon: "🌍", text: "Organic = geofenced, slow, limited signal" },
+        { icon: "🎲", text: "Agencies = guesswork dressed as strategy" }
+      ].map((item, i) => (
+        <motion.div 
+          key={i}
+          className="flex items-center gap-4"
+          initial={{ x: -30, opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          transition={{ delay: 0.4 + i * 0.15 }}
+        >
+          <Float speed={0.4} amplitude={[3, 5, 0]} rotationRange={[5, 5, 10]} timeOffset={i}>
+            <span className="text-4xl">{item.icon}</span>
+          </Float>
+          <span className="text-xl text-white/80">{item.text}</span>
+        </motion.div>
+      ))}
+    </div>
+  </div>
+</motion.div>`
+    }
+  ]
 }
-
-CODE GENERATION RULES:
-1. Output ONLY valid JSX that can be rendered by react-live
-2. Use motion.div, motion.h1, motion.p for animations
-3. Use Tailwind CSS classes for ALL styling
-4. Root element MUST have "w-full h-full" classes
-5. Use the Fancy Components appropriately based on style
-6. Add entrance animations with initial/animate/transition props
-7. NO imports, NO export statements - just pure JSX
-8. Maintain the EXACT color palette and typography across ALL slides
-
-CONSISTENCY REQUIREMENTS:
-- Same background treatment style across all slides
-- Same typography scale and weights
-- Same animation timing and easing
-- Same spacing system (padding, gaps)
-- Same accent color usage
-- Cohesive visual rhythm throughout`
 
 export async function POST(req: NextRequest) {
   try {
@@ -223,55 +304,61 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Script is required' }, { status: 400 })
     }
 
-    const styleSystem = BRAND_STYLE_SYSTEMS[brandStyle as keyof typeof BRAND_STYLE_SYSTEMS] || BRAND_STYLE_SYSTEMS.professional
+    const style = STYLE_CONFIGS[brandStyle as keyof typeof STYLE_CONFIGS] || STYLE_CONFIGS.professional
+    const examples = EXAMPLE_SLIDES[brandStyle as keyof typeof EXAMPLE_SLIDES] || EXAMPLE_SLIDES.bold
 
-    // Step 1: Generate detailed slide specifications
-    const specResponse = await openai.chat.completions.create({
+    const response = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         {
           role: 'user',
-          content: `Create a presentation with the following:
+          content: `Create a presentation with this style and script:
 
-BRAND STYLE SYSTEM:
-${JSON.stringify(styleSystem, null, 2)}
+## STYLE: ${brandStyle.toUpperCase()}
+- Gradient colors: ${style.colors}
+- Background: ${style.bgClass}
+- Primary text: ${style.textPrimary}
+- Secondary text: ${style.textSecondary}
+- Accent color: ${style.accent}
+- Floating orb colors: ${style.orbColors}
+- Typography: ${style.fonts}
+- Vibe: ${style.vibe}
 
-INPUT SCRIPT/OUTLINE:
+## EXAMPLE SLIDES (follow this quality level):
+
+### Example Title Slide:
+\`\`\`jsx
+${examples[0]?.code || ''}
+\`\`\`
+
+### Example Content Slide:
+\`\`\`jsx
+${examples[1]?.code || ''}
+\`\`\`
+
+## YOUR SCRIPT TO DESIGN:
 ${script}
 
-INSTRUCTIONS:
-1. Parse the script and create a slide for EVERY section/point mentioned
-2. Do NOT skip or combine points - each deserves its own slide
-3. Generate detailed specifications following the schema
-4. Then generate React/JSX code for each slide
-5. Ensure STRICT visual consistency using the style system
+## REQUIREMENTS:
+1. Create a slide for EACH section in the script
+2. EVERY slide must have:
+   - AnimatedGradient or gradient background
+   - At least 2 Float elements (floating orbs, icons, or decorations)
+   - Typewriter OR motion animations for text
+   - Visual decorations (orbs, lines, shapes)
+3. Match the ${brandStyle} style exactly
+4. Make it VISUALLY IMPRESSIVE - not just text on background
 
-Respond with JSON:
-{
-  "presentation_style": {
-    "background_base": "string (the consistent background approach)",
-    "typography_scale": "string (the consistent type scale)",
-    "animation_timing": "string (the consistent timing)",
-    "accent_usage": "string (how accents are used)"
-  },
-  "slides": [
-    {
-      "spec": { ...slide specification },
-      "code": "<motion.div>...</motion.div>"
-    }
-  ]
-}
-
-Generate ALL slides now.`,
-        },
+Generate ALL slides now as JSON.`
+        }
       ],
-      temperature: 0.3,
+      temperature: 0.4,
       max_tokens: 16000,
       response_format: { type: 'json_object' },
     })
 
-    const content = specResponse.choices[0]?.message?.content
+    const content = response.choices[0]?.message?.content
     if (!content) {
       return NextResponse.json({ error: 'No response from AI' }, { status: 500 })
     }
@@ -282,7 +369,6 @@ Generate ALL slides now.`,
       return NextResponse.json({ error: 'Invalid response format' }, { status: 500 })
     }
 
-    // Extract just the code from each slide
     const validSlides = parsed.slides
       .filter((s: { code?: string }) => s.code && typeof s.code === 'string')
       .map((s: { code: string; spec?: Record<string, unknown> }) => ({
