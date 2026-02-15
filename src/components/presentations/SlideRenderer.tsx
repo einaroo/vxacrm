@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { LiveProvider, LivePreview, LiveError } from 'react-live'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
@@ -13,49 +13,46 @@ import Typewriter from '@/components/fancy/text/typewriter'
 import TextRotate from '@/components/fancy/text/text-rotate'
 import LetterSwap from '@/components/fancy/text/letter-swap-forward-anim'
 
-// Scope: all components/utilities available in slide code
-const scope = {
-  // React
-  React,
-  useState,
-  useEffect,
-  
-  // Motion
-  motion,
-  AnimatePresence,
-  
-  // Fancy Components
-  AnimatedGradient,
-  Float,
-  SimpleMarquee,
-  Typewriter,
-  TextRotate,
-  LetterSwap,
-  
-  // Utilities
-  cn,
-  
-  // Common elements (shortcuts)
-  div: 'div',
-  span: 'span',
-  h1: 'h1',
-  h2: 'h2',
-  h3: 'h3',
-  p: 'p',
-  ul: 'ul',
-  li: 'li',
-  img: 'img',
-}
-
 interface SlideRendererProps {
   code: string
   className?: string
 }
 
+// Inner component that uses react-live (only rendered client-side)
+function LiveSlide({ code }: { code: string }) {
+  // Scope must be defined inside the component to ensure client-side only
+  const scope = {
+    React,
+    useState,
+    useEffect,
+    useCallback,
+    motion,
+    AnimatePresence,
+    AnimatedGradient,
+    Float,
+    SimpleMarquee,
+    Typewriter,
+    TextRotate,
+    LetterSwap,
+    cn,
+  }
+
+  return (
+    <LiveProvider code={code} scope={scope} noInline={false}>
+      <LivePreview 
+        Component={({ children }) => <div className="w-full h-full">{children}</div>}
+      />
+      <LiveError className="absolute inset-0 bg-red-900/95 text-white p-6 text-sm font-mono overflow-auto z-50" />
+    </LiveProvider>
+  )
+}
+
 export function SlideRenderer({ code, className }: SlideRendererProps) {
-  // Debug logging
-  console.log('[SlideRenderer] Received code length:', code?.length)
-  console.log('[SlideRenderer] Code preview:', code?.substring(0, 100))
+  const [isClient, setIsClient] = useState(false)
+  
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
   
   // If no code or empty, show placeholder
   if (!code || code.trim() === '') {
@@ -65,15 +62,21 @@ export function SlideRenderer({ code, className }: SlideRendererProps) {
       </div>
     )
   }
+  
+  // Wait for client-side hydration
+  if (!isClient) {
+    return (
+      <div className={cn('w-full h-full bg-gradient-to-br from-slate-900 to-slate-800', className)}>
+        <div className="w-full h-full flex items-center justify-center">
+          <div className="animate-pulse text-slate-500">Loading preview...</div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className={cn('w-full h-full overflow-hidden relative', className)}>
-      <LiveProvider code={code} scope={scope} noInline={false}>
-        <LivePreview className="w-full h-full" />
-        <LiveError 
-          className="absolute inset-0 bg-red-900/90 text-white p-4 text-sm font-mono overflow-auto z-50"
-        />
-      </LiveProvider>
+      <LiveSlide code={code} />
     </div>
   )
 }
