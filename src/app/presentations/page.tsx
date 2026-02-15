@@ -13,8 +13,10 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { Plus, Search, Trash2, Play, Edit, Copy, LayoutGrid } from 'lucide-react'
+import { Textarea } from '@/components/ui/textarea'
+import { Plus, Search, Trash2, Play, Edit, Copy, LayoutGrid, FileText, Loader2 } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 interface Presentation {
   id: string
@@ -26,12 +28,16 @@ interface Presentation {
 }
 
 export default function PresentationsPage() {
+  const router = useRouter()
   const [presentations, setPresentations] = useState<Presentation[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [scriptDialogOpen, setScriptDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedPresentation, setSelectedPresentation] = useState<Presentation | null>(null)
+  const [generating, setGenerating] = useState(false)
+  const [scriptInput, setScriptInput] = useState('')
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -156,6 +162,61 @@ export default function PresentationsPage() {
     fetchPresentations()
   }
 
+  const handleGenerateFromScript = async () => {
+    if (!scriptInput.trim()) return
+    
+    setGenerating(true)
+    try {
+      // Call API to parse script
+      const response = await fetch('/api/presentations/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ script: scriptInput }),
+      })
+      
+      if (!response.ok) throw new Error('Failed to generate')
+      
+      const { slides } = await response.json()
+      
+      // Extract title from first slide or script
+      const firstSlide = slides[0]
+      const title = firstSlide?.content?.title || 'Generated Presentation'
+      
+      // Create presentation
+      const { data: pres, error } = await supabase
+        .from('presentations')
+        .insert({
+          title,
+          description: 'Generated from script',
+          slide_count: slides.length,
+        })
+        .select()
+        .single()
+      
+      if (pres && !error) {
+        // Insert all slides
+        const slideInserts = slides.map((slide: { template: string; content: Record<string, unknown> }, index: number) => ({
+          presentation_id: pres.id,
+          slide_order: index,
+          template: slide.template,
+          content: slide.content,
+        }))
+        
+        await supabase.from('presentation_slides').insert(slideInserts)
+        
+        // Navigate to editor
+        setScriptDialogOpen(false)
+        setScriptInput('')
+        router.push(`/presentations/${pres.id}`)
+      }
+    } catch (error) {
+      console.error('Error generating presentation:', error)
+      alert('Failed to generate presentation. Please try again.')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
@@ -177,10 +238,16 @@ export default function PresentationsPage() {
             {presentations.length} presentation{presentations.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <Button onClick={openNewDialog}>
-          <Plus className="w-4 h-4 mr-2" />
-          New Presentation
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setScriptDialogOpen(true)}>
+            <FileText className="w-4 h-4 mr-2" />
+            From Script
+          </Button>
+          <Button onClick={openNewDialog}>
+            <Plus className="w-4 h-4 mr-2" />
+            New Presentation
+          </Button>
+        </div>
       </div>
 
       <div className="relative mb-6">
@@ -322,6 +389,57 @@ export default function PresentationsPage() {
             </Button>
             <Button variant="destructive" onClick={handleDelete}>
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Generate from Script Dialog */}
+      <Dialog open={scriptDialogOpen} onOpenChange={setScriptDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Generate from Script</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-gray-500 mb-4">
+              Paste your presentation script or outline. Use headings like &quot;Slide 1: Title&quot; or bullet points. AI will parse it into slides.
+            </p>
+            <Textarea
+              placeholder={`*VXA Sales Deck*
+
+*Slide 1: Title*
+Company Name × Partner
+Your tagline here
+
+*Slide 2: The Problem*
+• Point one
+• Point two
+• Point three
+
+*Slide 3: Our Solution*
+Description of what you do...`}
+              value={scriptInput}
+              onChange={(e) => setScriptInput(e.target.value)}
+              rows={15}
+              className="font-mono text-sm"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setScriptDialogOpen(false)} disabled={generating}>
+              Cancel
+            </Button>
+            <Button onClick={handleGenerateFromScript} disabled={generating || !scriptInput.trim()}>
+              {generating ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <FileText className="w-4 h-4 mr-2" />
+                  Generate Slides
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
