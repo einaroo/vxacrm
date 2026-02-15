@@ -17,6 +17,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Plus, Search, Trash2, Play, Edit, Copy, LayoutGrid, FileText, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { DEFAULT_SLIDE_CODE } from '@/components/presentations/SlideRenderer'
 
 interface Presentation {
   id: string
@@ -26,6 +27,28 @@ interface Presentation {
   created_at: string
   updated_at: string
 }
+
+// Default code for a title slide
+const TITLE_SLIDE_CODE = (title: string) => `<motion.div 
+  className="w-full h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center p-16"
+  initial={{ opacity: 0 }}
+  animate={{ opacity: 1 }}
+>
+  <motion.h1 
+    className="text-6xl font-bold text-white mb-6 text-center"
+    initial={{ y: 30, opacity: 0 }}
+    animate={{ y: 0, opacity: 1 }}
+    transition={{ delay: 0.2 }}
+  >
+    ${title}
+  </motion.h1>
+  <motion.div 
+    className="w-24 h-1 bg-blue-500"
+    initial={{ scaleX: 0 }}
+    animate={{ scaleX: 1 }}
+    transition={{ delay: 0.4, duration: 0.6 }}
+  />
+</motion.div>`
 
 export default function PresentationsPage() {
   const router = useRouter()
@@ -75,37 +98,35 @@ export default function PresentationsPage() {
   }
 
   const handleCreate = async () => {
+    const title = formData.title || 'Untitled Presentation'
+    
     const { data, error } = await supabase
       .from('presentations')
       .insert({
-        title: formData.title || 'Untitled Presentation',
+        title,
         description: formData.description || null,
-        slide_count: 0,
+        slide_count: 1,
       })
       .select()
       .single()
 
     if (data && !error) {
-      // Create a default title slide
-      await supabase.from('presentation_slides').insert({
+      // Create a default title slide with CODE
+      const { error: slideError } = await supabase.from('presentation_slides').insert({
         presentation_id: data.id,
         slide_order: 0,
-        template: 'title',
-        content: {
-          title: formData.title || 'Untitled Presentation',
-          subtitle: '',
-        },
+        code: TITLE_SLIDE_CODE(title),
       })
       
-      // Update slide count
-      await supabase
-        .from('presentations')
-        .update({ slide_count: 1 })
-        .eq('id', data.id)
+      if (slideError) {
+        console.error('Error creating slide:', slideError)
+      }
+      
+      // Navigate to editor
+      router.push(`/presentations/${data.id}`)
     }
 
     setDialogOpen(false)
-    fetchPresentations()
   }
 
   const handleDuplicate = async (presentation: Presentation) => {
@@ -129,12 +150,11 @@ export default function PresentationsPage() {
         .order('slide_order', { ascending: true })
 
       if (slides) {
-        // Duplicate slides
+        // Duplicate slides with CODE field
         const newSlides = slides.map((slide) => ({
           presentation_id: newPres.id,
           slide_order: slide.slide_order,
-          template: slide.template,
-          content: slide.content,
+          code: slide.code || DEFAULT_SLIDE_CODE,
         }))
         await supabase.from('presentation_slides').insert(newSlides)
       }
@@ -168,23 +188,39 @@ export default function PresentationsPage() {
     
     setGenerating(true)
     try {
-      // Call design agent API to parse and design slides
-      const response = await fetch('/api/presentations/design', {
+      console.log('[FromScript] Calling generate-code API...')
+      
+      // Call the NEW code generation API
+      const response = await fetch('/api/presentations/generate-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ script: scriptInput, brandStyle }),
       })
       
-      if (!response.ok) throw new Error('Failed to generate')
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('[FromScript] API error:', errorText)
+        throw new Error('Failed to generate')
+      }
       
-      const { slides, palette } = await response.json()
+      const result = await response.json()
+      console.log('[FromScript] API response:', result)
       
-      // Extract title from first slide or script
-      const firstSlide = slides[0]
-      const title = firstSlide?.content?.title || 'Generated Presentation'
+      const slides = result.slides
+      if (!slides || slides.length === 0) {
+        throw new Error('No slides generated')
+      }
       
-      // Create presentation with brand metadata
-      const { data: pres, error } = await supabase
+      // Extract title from first slide spec or script
+      const firstLine = scriptInput.split('\n')[0]
+      const title = result.slides[0]?.spec?.slide_title || 
+                   firstLine.replace(/^(Slide \d+:|#|\*)/gi, '').trim().substring(0, 50) || 
+                   'Generated Presentation'
+      
+      console.log('[FromScript] Creating presentation with', slides.length, 'slides')
+      
+      // Create presentation
+      const { data: pres, error: presError } = await supabase
         .from('presentations')
         .insert({
           title,
@@ -194,30 +230,41 @@ export default function PresentationsPage() {
         .select()
         .single()
       
-      if (pres && !error) {
-        // Insert all slides with full visual specifications
-        const slideInserts = slides.map((slide: { template: string; content: Record<string, unknown>; visual?: Record<string, unknown> }, index: number) => ({
-          presentation_id: pres.id,
-          slide_order: index,
-          template: slide.template,
-          content: {
-            ...slide.content,
-            _visual: slide.visual, // Full visual design spec
-            _palette: palette,
-            _brandStyle: brandStyle,
-          },
-        }))
-        
-        await supabase.from('presentation_slides').insert(slideInserts)
-        
-        // Navigate to editor
-        setScriptDialogOpen(false)
-        setScriptInput('')
-        router.push(`/presentations/${pres.id}`)
+      if (presError || !pres) {
+        console.error('[FromScript] Presentation insert error:', presError)
+        throw new Error('Failed to create presentation')
       }
+      
+      console.log('[FromScript] Created presentation:', pres.id)
+      
+      // Insert all slides with CODE field
+      for (let i = 0; i < slides.length; i++) {
+        const slideCode = slides[i].code
+        console.log(`[FromScript] Inserting slide ${i + 1}, code length:`, slideCode?.length)
+        
+        const { error: slideError } = await supabase
+          .from('presentation_slides')
+          .insert({
+            presentation_id: pres.id,
+            slide_order: i,
+            code: slideCode,
+          })
+        
+        if (slideError) {
+          console.error(`[FromScript] Slide ${i + 1} insert error:`, slideError)
+        }
+      }
+      
+      console.log('[FromScript] All slides inserted, navigating to editor')
+      
+      // Navigate to editor
+      setScriptDialogOpen(false)
+      setScriptInput('')
+      router.push(`/presentations/${pres.id}`)
+      
     } catch (error) {
-      console.error('Error generating presentation:', error)
-      alert('Failed to generate presentation. Please try again.')
+      console.error('[FromScript] Error:', error)
+      alert('Failed to generate presentation. Check console for details.')
     } finally {
       setGenerating(false)
     }
@@ -280,9 +327,9 @@ export default function PresentationsPage() {
               className="overflow-hidden hover:shadow-md transition-shadow group"
             >
               {/* 16:9 Preview Thumbnail */}
-              <div className="aspect-video bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center relative">
-                <LayoutGrid className="w-12 h-12 text-gray-300" />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+              <div className="aspect-video bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center relative">
+                <LayoutGrid className="w-12 h-12 text-slate-600" />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
                   <div className="flex gap-2">
                     <Link href={`/presentations/${presentation.id}`}>
                       <Button size="sm" variant="secondary">
@@ -404,7 +451,7 @@ export default function PresentationsPage() {
       <Dialog open={scriptDialogOpen} onOpenChange={setScriptDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Design Presentation from Script</DialogTitle>
+            <DialogTitle>Generate Presentation from Script</DialogTitle>
           </DialogHeader>
           <div className="py-4 space-y-6">
             {/* Brand Style Selection */}
@@ -446,25 +493,25 @@ export default function PresentationsPage() {
             <div>
               <Label className="text-sm font-medium mb-2 block">Presentation Script</Label>
               <p className="text-sm text-gray-500 mb-3">
-                Paste your script. The design agent will create slides with matching visuals, animations, and consistent branding.
+                Paste your script or outline. AI will generate React slides with animations and consistent styling.
               </p>
               <Textarea
-                placeholder={`*VXA Sales Deck — VOI Pilot*
+                placeholder={`Slide 1: Welcome to VXA Labs
+Our AI-powered marketing platform
 
-*Slide 1: Title*
-VOI × VXA
-Validate Creative in Sweden. Scale Globally.
+Slide 2: The Problem
+Marketing content creation is slow and expensive
+Creative testing burns budget before you learn
 
-*Slide 2: The Problem*
-You know what creative _might_ work.
-You don't know what creative _will_ work.
+Slide 3: Our Solution  
+AI-generated content validated through real distribution
+Fast iteration, data-driven creative decisions
 
-• Paid ads = budget burned to learn
-• Organic = geofenced, slow, limited signal
-• Agencies = guesswork dressed up as strategy
-
-*Slide 3: Our Solution*
-We validate your creative through real organic distribution...`}
+Slide 4: How It Works
+1. Upload brand assets
+2. AI generates on-brand content
+3. Test across channels
+4. Scale what works`}
                 value={scriptInput}
                 onChange={(e) => setScriptInput(e.target.value)}
                 rows={12}
@@ -480,12 +527,12 @@ We validate your creative through real organic distribution...`}
               {generating ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Designing...
+                  Generating...
                 </>
               ) : (
                 <>
                   <FileText className="w-4 h-4 mr-2" />
-                  Design Presentation
+                  Generate Slides
                 </>
               )}
             </Button>
