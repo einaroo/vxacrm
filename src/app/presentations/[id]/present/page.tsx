@@ -10,24 +10,59 @@ import AnimatedGradient from '@/components/fancy/background/animated-gradient-wi
 import Float from '@/components/fancy/blocks/float'
 import Typewriter from '@/components/fancy/text/typewriter'
 
-interface SlideDesign {
+interface VisualSpec {
   background?: {
-    type?: string
-    colors?: string[]
     component?: string
+    props?: {
+      colors?: string[]
+      speed?: number
+      blur?: string
+      from?: string
+      to?: string
+      direction?: string
+    }
   }
-  titleEffect?: string
-  animation?: {
-    entrance?: string
-    stagger?: boolean
-    duration?: number
+  layout?: {
+    textAlign?: string
+    verticalAlign?: string
+    padding?: string
+  }
+  typography?: {
+    titleSize?: string
+    titleWeight?: string
+    titleEffect?: string
+    titleColor?: string
+    bodySize?: string
+    fontFamily?: string
   }
   decorations?: Array<{
     component?: string
-    position?: string
-    content?: string
+    element?: string
+    position?: { top?: string; left?: string; right?: string; bottom?: string }
+    size?: string
+    style?: string
+    props?: {
+      speed?: number
+      amplitude?: number[]
+      rotationRange?: number[]
+      timeOffset?: number
+    }
   }>
-  accentColor?: string
+  animations?: {
+    entrance?: string
+    stagger?: boolean
+    staggerDelay?: number
+    duration?: number
+  }
+  colorScheme?: string
+}
+
+interface Palette {
+  primary?: string[]
+  secondary?: string[]
+  accent?: string
+  background?: { light?: string; dark?: string }
+  gradient?: string[]
 }
 
 interface Slide {
@@ -35,21 +70,13 @@ interface Slide {
   slide_order: number
   template: string
   content: Record<string, unknown> & {
-    _design?: SlideDesign
-    _palette?: {
-      primary?: string[]
-      secondary?: string[]
-      accent?: string[]
-      background?: string
-    }
+    _visual?: VisualSpec
+    _palette?: Palette
+    _brandStyle?: string
   }
 }
 
-// Default color palettes
-const DEFAULT_COLORS = {
-  title: ['#0ea5e9', '#6366f1', '#8b5cf6', '#d946ef'],
-  quote: ['#4f46e5', '#7c3aed', '#a855f7', '#ec4899'],
-}
+const DEFAULT_GRADIENT = ['#0ea5e9', '#6366f1', '#8b5cf6', '#d946ef']
 
 export default function PresentationModePage() {
   const params = useParams()
@@ -130,7 +157,13 @@ export default function PresentationModePage() {
   if (loading) {
     return (
       <div className="fixed inset-0 bg-black flex items-center justify-center">
-        <div className="text-white">Loading...</div>
+        <motion.div 
+          className="text-white text-xl"
+          animate={{ opacity: [0.5, 1, 0.5] }}
+          transition={{ duration: 1.5, repeat: Infinity }}
+        >
+          Loading...
+        </motion.div>
       </div>
     )
   }
@@ -188,7 +221,7 @@ export default function PresentationModePage() {
             transition={{ duration: 0.4, ease: 'easeOut' }}
             className="w-full h-full max-w-[1920px] max-h-[1080px] aspect-video rounded-lg overflow-hidden shadow-2xl"
           >
-            <PresentSlide slide={currentSlide} slideKey={slideKey} />
+            <DesignedSlide slide={currentSlide} slideKey={slideKey} />
           </motion.div>
         </AnimatePresence>
       </div>
@@ -220,26 +253,107 @@ export default function PresentationModePage() {
   )
 }
 
-function PresentSlide({ slide, slideKey }: { slide: Slide; slideKey: number }) {
-  const content = slide.content
-  const design = content._design
-  const palette = content._palette
+// Render decorations from visual spec
+function RenderDecorations({ decorations }: { decorations?: VisualSpec['decorations'] }) {
+  if (!decorations?.length) return null
   
-  // Get colors from design or use defaults
-  const getColors = (defaultColors: string[]) => {
-    if (design?.background?.colors?.length) return design.background.colors
-    if (palette?.primary?.length) return palette.primary
-    return defaultColors
-  }
-  
-  const accentColor = design?.accentColor || palette?.accent?.[0] || '#6366f1'
-  const animDuration = design?.animation?.duration || 0.5
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden">
+      {decorations.map((dec, i) => {
+        if (dec.component === 'float') {
+          const posStyle: React.CSSProperties = {}
+          if (dec.position?.top) posStyle.top = dec.position.top
+          if (dec.position?.left) posStyle.left = dec.position.left
+          if (dec.position?.right) posStyle.right = dec.position.right
+          if (dec.position?.bottom) posStyle.bottom = dec.position.bottom
+          
+          return (
+            <div key={i} className="absolute" style={posStyle}>
+              <Float
+                speed={dec.props?.speed || 0.3}
+                amplitude={(dec.props?.amplitude as [number, number, number]) || [20, 15, 0]}
+                rotationRange={(dec.props?.rotationRange as [number, number, number]) || [5, 5, 3]}
+                timeOffset={dec.props?.timeOffset || i * 1.5}
+              >
+                {dec.element === 'orb' && (
+                  <div className={cn(dec.size || 'w-32 h-32', dec.style || 'rounded-full bg-white/10 blur-xl')} />
+                )}
+                {dec.element === 'quote-mark' && (
+                  <div className="text-[200px] text-white/5 font-serif leading-none">
+                    {dec.position?.left ? '"' : '"'}
+                  </div>
+                )}
+              </Float>
+            </div>
+          )
+        }
+        return null
+      })}
+    </div>
+  )
+}
 
-  // Render animated title based on design
+// Get entrance animation variants
+function getEntranceAnimation(entrance?: string, index = 0, staggerDelay = 0.1) {
+  const delay = index * staggerDelay
+  
+  switch (entrance) {
+    case 'fade-up':
+      return {
+        initial: { opacity: 0, y: 30 },
+        animate: { opacity: 1, y: 0 },
+        transition: { duration: 0.5, delay }
+      }
+    case 'slide-left':
+      return {
+        initial: { opacity: 0, x: -40 },
+        animate: { opacity: 1, x: 0 },
+        transition: { duration: 0.5, delay }
+      }
+    case 'slide-right':
+      return {
+        initial: { opacity: 0, x: 40 },
+        animate: { opacity: 1, x: 0 },
+        transition: { duration: 0.5, delay }
+      }
+    case 'scale':
+      return {
+        initial: { opacity: 0, scale: 0.9 },
+        animate: { opacity: 1, scale: 1 },
+        transition: { duration: 0.5, delay }
+      }
+    default:
+      return {
+        initial: { opacity: 0 },
+        animate: { opacity: 1 },
+        transition: { duration: 0.5, delay }
+      }
+  }
+}
+
+function DesignedSlide({ slide, slideKey }: { slide: Slide; slideKey: number }) {
+  const content = slide.content
+  const visual = content._visual || {}
+  const palette = content._palette || {}
+  
+  const typography = visual.typography || {}
+  const animations = visual.animations || {}
+  const background = visual.background || {}
+  const colorScheme = visual.colorScheme || 'light'
+  
+  // Get colors
+  const gradientColors = background.props?.colors || palette.gradient || DEFAULT_GRADIENT
+  const accentColor = typeof palette.accent === 'string' ? palette.accent : palette.primary?.[0] || '#6366f1'
+  
+  // Typography classes
+  const titleSizeClass = `text-${typography.titleSize || '5xl'}`
+  const titleWeightClass = `font-${typography.titleWeight || 'bold'}`
+  const bodySizeClass = `text-${typography.bodySize || '2xl'}`
+  const fontFamily = typography.fontFamily === 'georgia' ? 'Georgia, serif' : 'Inter, system-ui, sans-serif'
+  
+  // Render title with effect
   const renderTitle = (text: string, className: string) => {
-    const effect = design?.titleEffect || 'typewriter'
-    
-    if (effect === 'typewriter') {
+    if (typography.titleEffect === 'typewriter') {
       return (
         <Typewriter 
           key={slideKey}
@@ -250,55 +364,65 @@ function PresentSlide({ slide, slideKey }: { slide: Slide; slideKey: number }) {
       )
     }
     
+    const anim = getEntranceAnimation(animations.entrance, 0)
     return (
-      <motion.span
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: animDuration }}
-        className={className}
-      >
+      <motion.span {...anim} className={className}>
         {text}
       </motion.span>
     )
   }
 
+  // Background component
+  const renderBackground = () => {
+    if (background.component === 'animated-gradient-with-svg') {
+      return (
+        <AnimatedGradient 
+          colors={gradientColors} 
+          speed={background.props?.speed || 6} 
+          blur={(background.props?.blur as 'light' | 'medium' | 'heavy') || 'heavy'} 
+        />
+      )
+    }
+    
+    if (background.component === 'solid-gradient') {
+      return (
+        <div 
+          className={cn('absolute inset-0', `bg-gradient-${background.props?.direction || 'to-br'}`)}
+          style={{
+            background: `linear-gradient(to bottom right, ${background.props?.from || '#f8fafc'}, ${background.props?.to || '#e2e8f0'})`
+          }}
+        />
+      )
+    }
+    
+    return null
+  }
+
+  // Base styles
+  const isDark = colorScheme === 'dark'
+  const bgClass = isDark ? 'bg-slate-900' : 'bg-white'
+  const textClass = isDark ? 'text-white' : 'text-slate-800'
+  const subtextClass = isDark ? 'text-white/70' : 'text-slate-600'
+
   switch (slide.template) {
     case 'title':
-      const titleColors = getColors(DEFAULT_COLORS.title)
       return (
-        <div className="w-full h-full flex flex-col items-center justify-center text-center relative overflow-hidden">
-          {/* Animated Gradient Background */}
-          <AnimatedGradient 
-            colors={titleColors} 
-            speed={6} 
-            blur="heavy" 
-          />
+        <div className={cn('w-full h-full flex flex-col items-center justify-center text-center relative overflow-hidden', bgClass)}>
+          {renderBackground()}
+          <RenderDecorations decorations={visual.decorations} />
           
-          {/* Floating Decorative Elements */}
-          <div className="absolute inset-0 pointer-events-none">
-            <Float speed={0.3} amplitude={[20, 15, 0]} rotationRange={[5, 5, 3]} timeOffset={0}>
-              <div className="absolute top-[15%] left-[10%] w-32 h-32 rounded-full bg-white/10 blur-xl" />
-            </Float>
-            <Float speed={0.4} amplitude={[15, 20, 0]} rotationRange={[3, 8, 2]} timeOffset={2}>
-              <div className="absolute bottom-[20%] right-[15%] w-40 h-40 rounded-full bg-white/10 blur-xl" />
-            </Float>
-            <Float speed={0.25} amplitude={[25, 10, 0]} rotationRange={[4, 4, 5]} timeOffset={4}>
-              <div className="absolute top-[40%] right-[8%] w-24 h-24 rounded-full bg-white/5 blur-lg" />
-            </Float>
-          </div>
-          
-          {/* Content */}
           <div className="relative z-10 px-16">
-            <h1 className="text-7xl font-bold mb-6 text-white drop-shadow-2xl" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+            <h1 
+              className={cn(titleSizeClass, titleWeightClass, isDark ? 'text-white drop-shadow-2xl' : textClass)}
+              style={{ fontFamily }}
+            >
               {renderTitle(String(content.title || 'Title'), 'inline')}
             </h1>
             {Boolean(content.subtitle) && (
               <motion.p 
-                className="text-3xl text-white/90 font-light"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.5 }}
-                style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+                className={cn('text-3xl font-light mt-6', isDark ? 'text-white/90' : subtextClass)}
+                {...getEntranceAnimation(animations.entrance, 1, animations.staggerDelay)}
+                style={{ fontFamily }}
               >
                 {String(content.subtitle)}
               </motion.p>
@@ -309,19 +433,19 @@ function PresentSlide({ slide, slideKey }: { slide: Slide; slideKey: number }) {
 
     case 'content':
       return (
-        <div className="w-full h-full flex flex-col p-16 bg-gradient-to-br from-slate-50 to-white">
+        <div className={cn('w-full h-full flex flex-col p-16 relative overflow-hidden', bgClass)}>
+          {renderBackground()}
+          
           <h2 
-            className="text-5xl font-bold mb-10 bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent"
-            style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+            className={cn(titleSizeClass, titleWeightClass, textClass, 'mb-10 relative z-10')}
+            style={{ fontFamily }}
           >
             {renderTitle(String(content.title || 'Title'), 'inline')}
           </h2>
           <motion.p 
-            className="text-2xl text-slate-600 leading-relaxed whitespace-pre-wrap flex-1"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: animDuration, delay: 0.3 }}
-            style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+            className={cn(bodySizeClass, subtextClass, 'leading-relaxed whitespace-pre-wrap flex-1 relative z-10')}
+            {...getEntranceAnimation(animations.entrance, 1, animations.staggerDelay)}
+            style={{ fontFamily }}
           >
             {String(content.body || '')}
           </motion.p>
@@ -330,37 +454,33 @@ function PresentSlide({ slide, slideKey }: { slide: Slide; slideKey: number }) {
 
     case 'two-column':
       return (
-        <div className="w-full h-full flex flex-col p-16 bg-white">
+        <div className={cn('w-full h-full flex flex-col p-16', bgClass)}>
           <h2 
-            className="text-5xl font-bold mb-10 text-slate-800"
-            style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+            className={cn(titleSizeClass, titleWeightClass, textClass, 'mb-10')}
+            style={{ fontFamily }}
           >
             {renderTitle(String(content.title || 'Title'), 'inline')}
           </h2>
           <div className="flex-1 grid grid-cols-2 gap-12">
             <motion.div 
-              className="text-xl text-slate-700 whitespace-pre-wrap p-8 rounded-2xl border-2"
+              className={cn(bodySizeClass, subtextClass, 'whitespace-pre-wrap p-8 rounded-2xl border-2')}
               style={{ 
                 backgroundColor: `${accentColor}10`,
                 borderColor: `${accentColor}30`,
-                fontFamily: 'Inter, system-ui, sans-serif'
+                fontFamily
               }}
-              initial={{ opacity: 0, x: -30 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: animDuration, delay: 0.3 }}
+              {...getEntranceAnimation('slide-left', 0)}
             >
               {String(content.left || '')}
             </motion.div>
             <motion.div 
-              className="text-xl text-slate-700 whitespace-pre-wrap p-8 rounded-2xl border-2"
+              className={cn(bodySizeClass, subtextClass, 'whitespace-pre-wrap p-8 rounded-2xl border-2')}
               style={{ 
-                backgroundColor: `${palette?.secondary?.[0] || '#8b5cf6'}10`,
-                borderColor: `${palette?.secondary?.[0] || '#8b5cf6'}30`,
-                fontFamily: 'Inter, system-ui, sans-serif'
+                backgroundColor: `${palette.secondary?.[0] || '#8b5cf6'}10`,
+                borderColor: `${palette.secondary?.[0] || '#8b5cf6'}30`,
+                fontFamily
               }}
-              initial={{ opacity: 0, x: 30 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: animDuration, delay: 0.4 }}
+              {...getEntranceAnimation('slide-right', 0)}
             >
               {String(content.right || '')}
             </motion.div>
@@ -371,10 +491,10 @@ function PresentSlide({ slide, slideKey }: { slide: Slide; slideKey: number }) {
     case 'bullets':
       const bullets = (content.bullets as string[]) || []
       return (
-        <div className="w-full h-full flex flex-col p-16 bg-gradient-to-br from-white to-slate-50">
+        <div className={cn('w-full h-full flex flex-col p-16', bgClass)}>
           <h2 
-            className="text-5xl font-bold mb-10 text-slate-800"
-            style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+            className={cn(titleSizeClass, titleWeightClass, textClass, 'mb-10')}
+            style={{ fontFamily }}
           >
             {renderTitle(String(content.title || 'Title'), 'inline')}
           </h2>
@@ -382,11 +502,9 @@ function PresentSlide({ slide, slideKey }: { slide: Slide; slideKey: number }) {
             {bullets.map((bullet, i) => (
               <motion.li 
                 key={i} 
-                className="text-2xl text-slate-700 flex items-start gap-4"
-                initial={{ opacity: 0, x: -40 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.4, delay: 0.2 + i * 0.1 }}
-                style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+                className={cn(bodySizeClass, subtextClass, 'flex items-start gap-4')}
+                {...getEntranceAnimation(animations.entrance || 'slide-left', i, animations.staggerDelay || 0.1)}
+                style={{ fontFamily }}
               >
                 <Float 
                   speed={0.5} 
@@ -397,7 +515,7 @@ function PresentSlide({ slide, slideKey }: { slide: Slide; slideKey: number }) {
                   <span 
                     className="w-4 h-4 rounded-full mt-2 flex-shrink-0 shadow-lg"
                     style={{ 
-                      background: `linear-gradient(135deg, ${accentColor}, ${palette?.primary?.[1] || '#8b5cf6'})`,
+                      background: `linear-gradient(135deg, ${accentColor}, ${palette.primary?.[1] || accentColor})`,
                       boxShadow: `0 4px 14px ${accentColor}40`
                     }}
                   />
@@ -410,27 +528,18 @@ function PresentSlide({ slide, slideKey }: { slide: Slide; slideKey: number }) {
       )
 
     case 'quote':
-      const quoteColors = getColors(DEFAULT_COLORS.quote)
       return (
         <div className="w-full h-full flex flex-col items-center justify-center text-center relative overflow-hidden bg-slate-900">
-          {/* Animated Gradient Overlay */}
           <div className="absolute inset-0 opacity-40">
             <AnimatedGradient 
-              colors={quoteColors} 
+              colors={gradientColors} 
               speed={8} 
               blur="heavy" 
             />
           </div>
           
-          {/* Floating Quote Marks */}
-          <Float speed={0.2} amplitude={[30, 20, 0]} rotationRange={[5, 10, 5]} className="absolute top-[10%] left-[5%]">
-            <div className="text-[200px] text-white/5 font-serif leading-none">&ldquo;</div>
-          </Float>
-          <Float speed={0.2} amplitude={[20, 30, 0]} rotationRange={[8, 5, 3]} timeOffset={3} className="absolute bottom-[10%] right-[5%]">
-            <div className="text-[200px] text-white/5 font-serif leading-none">&rdquo;</div>
-          </Float>
+          <RenderDecorations decorations={visual.decorations} />
           
-          {/* Quote Content */}
           <div className="relative z-10 px-20 max-w-5xl">
             <blockquote 
               className="text-4xl italic text-white leading-relaxed font-light"
@@ -445,9 +554,7 @@ function PresentSlide({ slide, slideKey }: { slide: Slide; slideKey: number }) {
             {Boolean(content.author) && (
               <motion.p 
                 className="text-2xl text-white/70 mt-10"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.5, delay: 1 }}
+                {...getEntranceAnimation('fade', 0)}
                 style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
               >
                 — {String(content.author)}
@@ -459,7 +566,7 @@ function PresentSlide({ slide, slideKey }: { slide: Slide; slideKey: number }) {
 
     case 'image':
       return (
-        <div className="w-full h-full flex flex-col items-center justify-center p-16 bg-slate-50">
+        <div className={cn('w-full h-full flex flex-col items-center justify-center p-16', bgClass)}>
           <Float speed={0.15} amplitude={[5, 8, 0]} rotationRange={[1, 1, 0]}>
             {content.imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -476,11 +583,9 @@ function PresentSlide({ slide, slideKey }: { slide: Slide; slideKey: number }) {
           </Float>
           {Boolean(content.caption) && (
             <motion.p 
-              className="text-2xl text-slate-600 mt-8"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-              style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
+              className={cn(bodySizeClass, subtextClass, 'mt-8')}
+              {...getEntranceAnimation('fade', 0)}
+              style={{ fontFamily }}
             >
               {String(content.caption)}
             </motion.p>

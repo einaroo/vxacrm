@@ -195,15 +195,16 @@ export default function PresentationsPage() {
         .single()
       
       if (pres && !error) {
-        // Insert all slides with design metadata
-        const slideInserts = slides.map((slide: { template: string; content: Record<string, unknown>; design?: Record<string, unknown> }, index: number) => ({
+        // Insert all slides with full visual specifications
+        const slideInserts = slides.map((slide: { template: string; content: Record<string, unknown>; visual?: Record<string, unknown> }, index: number) => ({
           presentation_id: pres.id,
           slide_order: index,
           template: slide.template,
           content: {
             ...slide.content,
-            _design: slide.design, // Store design decisions
+            _visual: slide.visual, // Full visual design spec
             _palette: palette,
+            _brandStyle: brandStyle,
           },
         }))
         

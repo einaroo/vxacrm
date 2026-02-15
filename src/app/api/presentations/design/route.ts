@@ -5,71 +5,85 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
-// Available Fancy Components for design decisions
-const AVAILABLE_COMPONENTS = {
-  backgrounds: [
-    'animated-gradient-with-svg',
-    'pixel-trail',
-    'parallax-floating',
-    'screensaver',
-  ],
-  text: [
-    'typewriter',
-    'letter-swap-forward-anim',
-    'text-rotate',
-    'simple-marquee',
-  ],
-  layout: [
-    'float',
-    'stacking-cards',
-    'circling-elements',
-    'media-between-text',
-  ],
-  interactive: [
-    'drag-elements',
-    'cursor-attractor-and-gravity',
-    'elastic-line',
-  ],
-  carousels: [
-    'simple-carousel',
-    'box-carousel',
-  ],
-  effects: [
-    'gooey-svg-filter',
-    'image-trail',
-  ],
-}
-
-const BRAND_PALETTES = {
-  professional: {
-    primary: ['#0ea5e9', '#3b82f6', '#6366f1'],
-    secondary: ['#64748b', '#475569', '#334155'],
-    accent: ['#f59e0b', '#10b981'],
-    background: 'light',
+// Fancy Components Design System
+const DESIGN_SYSTEM = {
+  components: {
+    backgrounds: {
+      'animated-gradient-with-svg': {
+        description: 'Flowing animated gradient background',
+        props: ['colors (array of 3-5 hex)', 'speed (4-10)', 'blur (light/medium/heavy)'],
+        bestFor: ['title slides', 'quote slides', 'dramatic moments'],
+      },
+      'solid-gradient': {
+        description: 'Static gradient background',
+        props: ['from (hex)', 'to (hex)', 'direction (to-r/to-br/to-b)'],
+        bestFor: ['content slides', 'subtle backgrounds'],
+      },
+    },
+    text: {
+      'typewriter': {
+        description: 'Types out text character by character',
+        props: ['speed (20-50ms)', 'delay (0-500ms)'],
+        bestFor: ['titles', 'key statements', 'quotes'],
+      },
+      'simple-marquee': {
+        description: 'Scrolling text banner',
+        props: ['baseVelocity (50-150)', 'direction (left/right)'],
+        bestFor: ['decorative text', 'repeating messages'],
+      },
+    },
+    decorations: {
+      'float': {
+        description: 'Floating/hovering element with 3D motion',
+        props: ['speed (0.2-0.6)', 'amplitude ([x,y,z])', 'rotationRange ([x,y,z])'],
+        bestFor: ['orbs', 'shapes', 'icons', 'images'],
+      },
+    },
+    filters: {
+      'gooey-svg-filter': {
+        description: 'Gooey blob effect',
+        props: ['blur (10-30)', 'alphaMatrix (15-25)'],
+        bestFor: ['blob shapes', 'organic decorations'],
+      },
+    },
   },
-  bold: {
-    primary: ['#dc2626', '#ea580c', '#f59e0b'],
-    secondary: ['#1f2937', '#111827'],
-    accent: ['#fbbf24', '#34d399'],
-    background: 'dark',
-  },
-  creative: {
-    primary: ['#8b5cf6', '#a855f7', '#d946ef'],
-    secondary: ['#6366f1', '#4f46e5'],
-    accent: ['#06b6d4', '#22d3ee'],
-    background: 'gradient',
-  },
-  minimal: {
-    primary: ['#18181b', '#27272a'],
-    secondary: ['#71717a', '#a1a1aa'],
-    accent: ['#3b82f6'],
-    background: 'white',
-  },
-  tech: {
-    primary: ['#06b6d4', '#0891b2', '#0e7490'],
-    secondary: ['#1e293b', '#0f172a'],
-    accent: ['#22d3ee', '#67e8f9'],
-    background: 'dark',
+  
+  palettes: {
+    professional: {
+      primary: ['#0ea5e9', '#3b82f6', '#6366f1'],
+      secondary: ['#64748b', '#475569'],
+      accent: '#f59e0b',
+      background: { light: '#ffffff', dark: '#0f172a' },
+      gradient: ['#0ea5e9', '#6366f1', '#8b5cf6'],
+    },
+    bold: {
+      primary: ['#dc2626', '#ea580c', '#f59e0b'],
+      secondary: ['#1f2937', '#111827'],
+      accent: '#fbbf24',
+      background: { light: '#ffffff', dark: '#111827' },
+      gradient: ['#dc2626', '#ea580c', '#f59e0b', '#fbbf24'],
+    },
+    creative: {
+      primary: ['#8b5cf6', '#a855f7', '#d946ef'],
+      secondary: ['#6366f1', '#4f46e5'],
+      accent: '#06b6d4',
+      background: { light: '#faf5ff', dark: '#1e1b4b' },
+      gradient: ['#6366f1', '#8b5cf6', '#a855f7', '#d946ef'],
+    },
+    minimal: {
+      primary: ['#18181b', '#27272a', '#3f3f46'],
+      secondary: ['#71717a', '#a1a1aa'],
+      accent: '#3b82f6',
+      background: { light: '#ffffff', dark: '#18181b' },
+      gradient: ['#27272a', '#3f3f46', '#52525b'],
+    },
+    tech: {
+      primary: ['#06b6d4', '#0891b2', '#0e7490'],
+      secondary: ['#1e293b', '#0f172a'],
+      accent: '#22d3ee',
+      background: { light: '#f0fdfa', dark: '#0f172a' },
+      gradient: ['#06b6d4', '#0891b2', '#0e7490', '#155e75'],
+    },
   },
 }
 
@@ -81,65 +95,106 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Script is required' }, { status: 400 })
     }
 
-    const palette = BRAND_PALETTES[brandStyle as keyof typeof BRAND_PALETTES] || BRAND_PALETTES.professional
+    const palette = DESIGN_SYSTEM.palettes[brandStyle as keyof typeof DESIGN_SYSTEM.palettes] || DESIGN_SYSTEM.palettes.professional
 
-    const systemPrompt = `You are a presentation DESIGN agent. Your job is to:
-1. Parse the script into slides
-2. Design each slide with specific visual elements
-3. Maintain brand consistency across all slides
-4. Create a cohesive visual narrative
+    const systemPrompt = `You are a visual presentation designer. Create beautiful, branded slides using the Fancy Components design system.
 
-BRAND PALETTE:
-- Primary colors: ${palette.primary.join(', ')}
-- Secondary colors: ${palette.secondary.join(', ')}
-- Accent colors: ${palette.accent.join(', ')}
-- Background style: ${palette.background}
+# DESIGN SYSTEM
 
-AVAILABLE FANCY COMPONENTS:
-${JSON.stringify(AVAILABLE_COMPONENTS, null, 2)}
+## Brand Palette: "${brandStyle}"
+${JSON.stringify(palette, null, 2)}
 
-For EACH slide, output:
+## Available Fancy Components:
+${JSON.stringify(DESIGN_SYSTEM.components, null, 2)}
+
+# YOUR JOB
+
+For EACH slide, create a complete visual design specification:
+
+\`\`\`json
 {
   "template": "title|content|bullets|two-column|quote|image",
-  "content": { ... template-specific content ... },
-  "design": {
+  "content": {
+    "title": "...",
+    // other content fields based on template
+  },
+  "visual": {
     "background": {
-      "type": "gradient|solid|animated|image",
-      "colors": ["#hex1", "#hex2", ...],
-      "component": "animated-gradient-with-svg" | null
+      "component": "animated-gradient-with-svg" | "solid-gradient" | null,
+      "props": {
+        // component-specific props
+        "colors": ["#hex", "#hex", "#hex"],
+        "speed": 6,
+        "blur": "heavy"
+      }
     },
-    "titleEffect": "typewriter|letter-swap|text-rotate|none",
-    "animation": {
-      "entrance": "fade|slide|scale|bounce",
-      "stagger": true|false,
-      "duration": 0.3-0.8
+    "layout": {
+      "textAlign": "center" | "left",
+      "verticalAlign": "center" | "top",
+      "padding": "normal" | "large" | "compact"
+    },
+    "typography": {
+      "titleSize": "7xl" | "6xl" | "5xl" | "4xl",
+      "titleWeight": "bold" | "semibold" | "medium",
+      "titleEffect": "typewriter" | "static",
+      "titleColor": "#hex or gradient",
+      "bodySize": "2xl" | "xl" | "lg",
+      "fontFamily": "inter" | "georgia"
     },
     "decorations": [
-      { "component": "float", "position": "top-left|top-right|...", "content": "orb|shape|icon" }
+      {
+        "component": "float",
+        "element": "orb" | "shape" | "icon" | "quote-mark",
+        "position": { "top": "15%", "left": "10%" },
+        "size": "w-32 h-32",
+        "style": "rounded-full bg-white/10 blur-xl",
+        "props": {
+          "speed": 0.3,
+          "amplitude": [20, 15, 0],
+          "rotationRange": [5, 5, 3],
+          "timeOffset": 0
+        }
+      }
     ],
-    "accentColor": "#hex"
+    "animations": {
+      "entrance": "fade-up" | "fade" | "scale" | "slide-left" | "slide-right",
+      "stagger": true | false,
+      "staggerDelay": 0.1,
+      "duration": 0.5
+    },
+    "colorScheme": "light" | "dark"
   }
 }
+\`\`\`
 
-DESIGN RULES:
-1. Title slides: Always use animated gradient backgrounds, typewriter effect
-2. Content slides: Subtle backgrounds, focus on readability
-3. Bullet slides: Staggered animations, floating bullet points
-4. Quote slides: Dark dramatic backgrounds, large typography
-5. Maintain visual rhythm - alternate between dramatic and calm slides
-6. Use decorative Float elements sparingly but consistently
-7. Keep text effects subtle - typewriter for titles, static for body
+# DESIGN RULES
 
-Return a JSON array of designed slides. Include design decisions for every slide.`
+1. **Title slides**: ALWAYS use animated-gradient-with-svg background with brand gradient colors. Add 2-3 floating orb decorations. Use typewriter effect.
+
+2. **Content slides**: Light background (solid-gradient or white). Focus on readability. Subtle entrance animations.
+
+3. **Bullet slides**: Add floating bullets. Stagger entrance animations. Use accent color for bullet points.
+
+4. **Quote slides**: Dark colorScheme. Use animated gradient at low opacity. Add large floating quote marks. Georgia font for quotes.
+
+5. **Two-column slides**: Color-code columns with primary/secondary colors. Add subtle borders.
+
+6. **Visual rhythm**: Alternate between dramatic (title, quote) and calm (content, bullets) slides.
+
+7. **Decorations**: Use Float component for all decorative elements. Vary timeOffset so elements don't sync.
+
+8. **Colors**: ALWAYS use colors from the brand palette. Never use generic colors.
+
+Return a JSON array of fully designed slides. Every slide must have complete visual specifications.`
 
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Design this presentation with consistent branding:\n\n${script}` }
+        { role: 'user', content: `Design this presentation with the "${brandStyle}" brand style. Create stunning visuals for each slide:\n\n${script}` }
       ],
-      temperature: 0.4,
-      max_tokens: 8000,
+      temperature: 0.5,
+      max_tokens: 10000,
     })
 
     const content = response.choices[0].message.content || '[]'
@@ -156,7 +211,8 @@ Return a JSON array of designed slides. Include design decisions for every slide
     return NextResponse.json({ 
       slides,
       brandStyle,
-      palette 
+      palette,
+      designSystem: DESIGN_SYSTEM.components,
     })
   } catch (error) {
     console.error('Error designing presentation:', error)
