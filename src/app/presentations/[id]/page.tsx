@@ -227,38 +227,65 @@ export default function PresentationEditorPage() {
     
     setGenerating(true)
     try {
+      console.log('[Generate] Starting generation with brandStyle:', brandStyle)
+      
       const response = await fetch('/api/presentations/generate-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ script, brandStyle }),
       })
       
-      if (!response.ok) throw new Error('Generation failed')
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('[Generate] API error:', errorText)
+        throw new Error('Generation failed')
+      }
       
-      const { slides: generatedSlides } = await response.json()
+      const result = await response.json()
+      console.log('[Generate] API response:', result)
+      
+      const generatedSlides = result.slides
+      if (!generatedSlides || generatedSlides.length === 0) {
+        throw new Error('No slides generated')
+      }
+      
+      console.log('[Generate] Generated', generatedSlides.length, 'slides')
+      console.log('[Generate] First slide code:', generatedSlides[0]?.code?.substring(0, 200))
       
       // Delete existing slides
-      await supabase
+      const deleteResult = await supabase
         .from('presentation_slides')
         .delete()
         .eq('presentation_id', presentationId)
+      console.log('[Generate] Delete result:', deleteResult)
       
       // Insert new slides
       const newSlides: Slide[] = []
       for (let i = 0; i < generatedSlides.length; i++) {
-        const { data } = await supabase
+        const slideCode = generatedSlides[i].code
+        console.log(`[Generate] Inserting slide ${i + 1}, code length:`, slideCode?.length)
+        
+        const { data, error } = await supabase
           .from('presentation_slides')
           .insert({
             presentation_id: presentationId,
             slide_order: i,
-            code: generatedSlides[i].code,
+            code: slideCode,
           })
           .select()
           .single()
         
-        if (data) newSlides.push(data)
+        if (error) {
+          console.error(`[Generate] Insert error for slide ${i + 1}:`, error)
+        }
+        
+        if (data) {
+          console.log(`[Generate] Inserted slide ${i + 1}, returned code length:`, data.code?.length)
+          newSlides.push(data)
+        }
       }
       
+      console.log('[Generate] Total slides inserted:', newSlides.length)
       setSlides(newSlides)
       setSelectedSlideIndex(0)
       
@@ -273,8 +300,8 @@ export default function PresentationEditorPage() {
       setScriptDialogOpen(false)
       setScript('')
     } catch (error) {
-      console.error('Generation error:', error)
-      alert('Failed to generate slides. Please try again.')
+      console.error('[Generate] Error:', error)
+      alert('Failed to generate slides. Check console for details.')
     } finally {
       setGenerating(false)
     }

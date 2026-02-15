@@ -53,19 +53,25 @@ interface SlideRendererProps {
 }
 
 export function SlideRenderer({ code, className }: SlideRendererProps) {
-  // Wrap user code in a render function that returns the JSX
-  const wrappedCode = `
-    <div className="w-full h-full">
-      ${code}
-    </div>
-  `
+  // Debug logging
+  console.log('[SlideRenderer] Received code length:', code?.length)
+  console.log('[SlideRenderer] Code preview:', code?.substring(0, 100))
+  
+  // If no code or empty, show placeholder
+  if (!code || code.trim() === '') {
+    return (
+      <div className={cn('w-full h-full flex items-center justify-center bg-slate-900 text-slate-400', className)}>
+        No slide code
+      </div>
+    )
+  }
 
   return (
-    <div className={cn('w-full h-full overflow-hidden', className)}>
-      <LiveProvider code={wrappedCode} scope={scope} noInline={false}>
+    <div className={cn('w-full h-full overflow-hidden relative', className)}>
+      <LiveProvider code={code} scope={scope} noInline={false}>
         <LivePreview className="w-full h-full" />
         <LiveError 
-          className="absolute inset-0 bg-red-900/90 text-white p-4 text-sm font-mono overflow-auto"
+          className="absolute inset-0 bg-red-900/90 text-white p-4 text-sm font-mono overflow-auto z-50"
         />
       </LiveProvider>
     </div>
