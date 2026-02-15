@@ -66,15 +66,17 @@ const SLIDE_SPEC_SCHEMA = `{
 
 const DESIGN_AGENT_PROMPT = `You are an expert presentation design strategist. Create DETAILED visual specifications for each slide.
 
-## AVAILABLE FANCY COMPONENTS (pick appropriate ones):
+## AVAILABLE FANCY COMPONENTS (MUST use 1-3 per slide):
 - AnimatedGradient: Animated gradient backgrounds - dramatic, high-energy, use for title/hero slides
-- Float: Floating elements with subtle motion - icons, decorations, visual interest
+- Float: Floating elements with subtle motion - icons, decorations, visual interest (USE OFTEN)
 - Typewriter: Text typing animation - reveals, emphasis on key messages
-- TextRotate: Cycling through text options - value props, alternatives
+- TextRotate: Cycling through text options - value props, alternatives  
 - SimpleMarquee: Horizontal scrolling text - testimonials, logos, continuous messaging
 - LetterSwap: Letter-by-letter swap animation - short impactful words, CTAs
-- GooeyFilter: Gooey/liquid SVG effect - creative, organic, blob-like visuals
+- GooeyFilter: Gooey/liquid SVG effect - creative, organic, blob-like visuals (USE ON 1-2 SLIDES)
 - CssBox: 3D box effects - product showcases, depth
+
+CRITICAL: Every slide MUST have at least 1 fancy_component. Use GooeyFilter on at least one slide.
 
 ## LAYOUT RULES (CRITICAL for consistency):
 1. Text must NEVER overlap with decorative elements
@@ -169,10 +171,12 @@ ${script}
 Requirements:
 1. Use the FULL spec schema for each slide
 2. Include visual_tone, color_system, background_treatment, typography_character, composition
-3. Pick fancy_components that match each slide's intent
-4. Specify graphic_elements with allowed decorations
-5. List anti_patterns to avoid
-6. Ensure visual consistency across all slides
+3. EVERY slide MUST have 1-3 fancy_components (NEVER empty array)
+4. Use GooeyFilter on at least 1-2 slides for organic blob effects
+5. Use Float on most slides for decorative floating elements
+6. Specify graphic_elements with allowed decorations
+7. List anti_patterns to avoid
+8. Ensure visual consistency across all slides
 
 Return as JSON with "presentation" and "slides" arrays.`
         }
