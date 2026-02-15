@@ -4,8 +4,22 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -14,12 +28,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import {
   ArrowLeft,
   Plus,
   Trash2,
@@ -27,22 +35,29 @@ import {
   ChevronUp,
   ChevronDown,
   MoreVertical,
-  Type,
-  LayoutTemplate,
-  Columns,
-  Quote,
-  ImageIcon,
-  List,
+  Wand2,
+  FileText,
+  Sparkles,
+  Code,
+  Eye,
+  Loader2,
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import dynamic from 'next/dynamic'
+import { SlideRenderer, DEFAULT_SLIDE_CODE, BRAND_TEMPLATES } from '@/components/presentations/SlideRenderer'
+
+// Dynamic import Monaco to avoid SSR issues
+const MonacoEditor = dynamic(
+  () => import('@monaco-editor/react').then(mod => mod.default),
+  { ssr: false, loading: () => <div className="flex items-center justify-center h-full text-slate-400">Loading editor...</div> }
+)
 
 interface Slide {
   id: string
   presentation_id: string
   slide_order: number
-  template: string
-  content: Record<string, unknown>
+  code: string // JSX code - the actual slide content
   created_at: string
 }
 
@@ -53,13 +68,14 @@ interface Presentation {
   slide_count: number
 }
 
-const TEMPLATES = [
-  { id: 'title', label: 'Title Slide', icon: Type },
-  { id: 'content', label: 'Title + Content', icon: LayoutTemplate },
-  { id: 'two-column', label: 'Two Columns', icon: Columns },
-  { id: 'bullets', label: 'Bullet Points', icon: List },
-  { id: 'quote', label: 'Quote', icon: Quote },
-  { id: 'image', label: 'Image + Caption', icon: ImageIcon },
+type BrandStyle = 'professional' | 'bold' | 'creative' | 'minimal' | 'tech'
+
+const BRAND_STYLES: { id: BrandStyle; label: string; description: string }[] = [
+  { id: 'professional', label: 'Professional', description: 'Clean, corporate, trustworthy' },
+  { id: 'bold', label: 'Bold', description: 'High contrast, impactful, energetic' },
+  { id: 'creative', label: 'Creative', description: 'Playful gradients, expressive' },
+  { id: 'minimal', label: 'Minimal', description: 'White space, elegant, refined' },
+  { id: 'tech', label: 'Tech', description: 'Cyber, grid patterns, monospace' },
 ]
 
 export default function PresentationEditorPage() {
@@ -72,6 +88,13 @@ export default function PresentationEditorPage() {
   const [selectedSlideIndex, setSelectedSlideIndex] = useState(0)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [viewMode, setViewMode] = useState<'preview' | 'code' | 'split'>('split')
+  
+  // Script generation state
+  const [scriptDialogOpen, setScriptDialogOpen] = useState(false)
+  const [script, setScript] = useState('')
+  const [brandStyle, setBrandStyle] = useState<BrandStyle>('professional')
+  const [generating, setGenerating] = useState(false)
 
   const fetchData = useCallback(async () => {
     const [presRes, slidesRes] = await Promise.all([
@@ -84,7 +107,17 @@ export default function PresentationEditorPage() {
     ])
 
     if (presRes.data) setPresentation(presRes.data)
-    if (slidesRes.data) setSlides(slidesRes.data)
+    if (slidesRes.data) {
+      // Migration: convert old template/content to code if needed
+      const migratedSlides = slidesRes.data.map((slide) => ({
+        id: slide.id as string,
+        presentation_id: slide.presentation_id as string,
+        slide_order: slide.slide_order as number,
+        code: (slide.code as string) || DEFAULT_SLIDE_CODE,
+        created_at: slide.created_at as string,
+      }))
+      setSlides(migratedSlides)
+    }
     setLoading(false)
   }, [presentationId])
 
@@ -94,17 +127,17 @@ export default function PresentationEditorPage() {
 
   const selectedSlide = slides[selectedSlideIndex]
 
-  const updateSlide = async (updates: Partial<Slide>) => {
+  const updateSlideCode = async (newCode: string) => {
     if (!selectedSlide) return
     setSaving(true)
 
     const newSlides = [...slides]
-    newSlides[selectedSlideIndex] = { ...selectedSlide, ...updates }
+    newSlides[selectedSlideIndex] = { ...selectedSlide, code: newCode }
     setSlides(newSlides)
 
     await supabase
       .from('presentation_slides')
-      .update(updates)
+      .update({ code: newCode })
       .eq('id', selectedSlide.id)
 
     await supabase
@@ -115,22 +148,16 @@ export default function PresentationEditorPage() {
     setSaving(false)
   }
 
-  const updateContent = (key: string, value: unknown) => {
-    if (!selectedSlide) return
-    updateSlide({ content: { ...selectedSlide.content, [key]: value } })
-  }
-
-  const addSlide = async (template: string = 'content') => {
+  const addSlide = async (style?: BrandStyle) => {
     const newOrder = slides.length
-    const defaultContent = getDefaultContent(template)
+    const code = style ? BRAND_TEMPLATES[style] : DEFAULT_SLIDE_CODE
 
     const { data } = await supabase
       .from('presentation_slides')
       .insert({
         presentation_id: presentationId,
         slide_order: newOrder,
-        template,
-        content: defaultContent,
+        code,
       })
       .select()
       .single()
@@ -152,7 +179,6 @@ export default function PresentationEditorPage() {
     const slideToDelete = slides[index]
     const newSlides = slides.filter((_, i) => i !== index)
 
-    // Reorder remaining slides
     const reorderedSlides = newSlides.map((s, i) => ({ ...s, slide_order: i }))
     setSlides(reorderedSlides)
 
@@ -162,7 +188,6 @@ export default function PresentationEditorPage() {
 
     await supabase.from('presentation_slides').delete().eq('id', slideToDelete.id)
 
-    // Update order for remaining slides
     for (const slide of reorderedSlides) {
       await supabase
         .from('presentation_slides')
@@ -185,7 +210,6 @@ export default function PresentationEditorPage() {
     newSlides[index] = newSlides[newIndex]
     newSlides[newIndex] = temp
 
-    // Update orders
     newSlides.forEach((s, i) => (s.slide_order = i))
     setSlides(newSlides)
     setSelectedSlideIndex(newIndex)
@@ -198,51 +222,150 @@ export default function PresentationEditorPage() {
     }
   }
 
-  const getDefaultContent = (template: string) => {
-    switch (template) {
-      case 'title':
-        return { title: 'Slide Title', subtitle: '' }
-      case 'content':
-        return { title: 'Slide Title', body: 'Add your content here...' }
-      case 'two-column':
-        return { title: 'Slide Title', left: 'Left column content', right: 'Right column content' }
-      case 'bullets':
-        return { title: 'Slide Title', bullets: ['Point 1', 'Point 2', 'Point 3'] }
-      case 'quote':
-        return { quote: 'Your quote here...', author: 'Author Name' }
-      case 'image':
-        return { imageUrl: '', caption: 'Image caption' }
-      default:
-        return { title: 'Slide Title', body: '' }
+  const generateFromScript = async () => {
+    if (!script.trim()) return
+    
+    setGenerating(true)
+    try {
+      const response = await fetch('/api/presentations/generate-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ script, brandStyle }),
+      })
+      
+      if (!response.ok) throw new Error('Generation failed')
+      
+      const { slides: generatedSlides } = await response.json()
+      
+      // Delete existing slides
+      await supabase
+        .from('presentation_slides')
+        .delete()
+        .eq('presentation_id', presentationId)
+      
+      // Insert new slides
+      const newSlides: Slide[] = []
+      for (let i = 0; i < generatedSlides.length; i++) {
+        const { data } = await supabase
+          .from('presentation_slides')
+          .insert({
+            presentation_id: presentationId,
+            slide_order: i,
+            code: generatedSlides[i].code,
+          })
+          .select()
+          .single()
+        
+        if (data) newSlides.push(data)
+      }
+      
+      setSlides(newSlides)
+      setSelectedSlideIndex(0)
+      
+      await supabase
+        .from('presentations')
+        .update({ 
+          slide_count: newSlides.length, 
+          updated_at: new Date().toISOString() 
+        })
+        .eq('id', presentationId)
+      
+      setScriptDialogOpen(false)
+      setScript('')
+    } catch (error) {
+      console.error('Generation error:', error)
+      alert('Failed to generate slides. Please try again.')
+    } finally {
+      setGenerating(false)
     }
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-screen">Loading...</div>
+    return (
+      <div className="flex items-center justify-center h-screen bg-slate-950">
+        <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+      </div>
+    )
   }
 
   if (!presentation) {
-    return <div className="flex items-center justify-center h-screen">Presentation not found</div>
+    return (
+      <div className="flex items-center justify-center h-screen bg-slate-950 text-white">
+        Presentation not found
+      </div>
+    )
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-100">
+    <div className="h-screen flex flex-col bg-slate-950">
       {/* Header */}
-      <div className="bg-white border-b px-4 py-3 flex items-center justify-between">
+      <div className="bg-slate-900 border-b border-slate-800 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.push('/presentations')}>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => router.push('/presentations')}
+            className="text-slate-400 hover:text-white"
+          >
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <div>
-            <h1 className="font-semibold">{presentation.title}</h1>
-            <p className="text-xs text-gray-500">
+            <h1 className="font-semibold text-white">{presentation.title}</h1>
+            <p className="text-xs text-slate-500">
               {slides.length} slides {saving && '· Saving...'}
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          {/* View Mode Toggle */}
+          <div className="flex bg-slate-800 rounded-lg p-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn(
+                'px-3 h-7',
+                viewMode === 'preview' && 'bg-slate-700 text-white'
+              )}
+              onClick={() => setViewMode('preview')}
+            >
+              <Eye className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn(
+                'px-3 h-7',
+                viewMode === 'split' && 'bg-slate-700 text-white'
+              )}
+              onClick={() => setViewMode('split')}
+            >
+              <span className="text-xs">Split</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn(
+                'px-3 h-7',
+                viewMode === 'code' && 'bg-slate-700 text-white'
+              )}
+              onClick={() => setViewMode('code')}
+            >
+              <Code className="w-4 h-4" />
+            </Button>
+          </div>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setScriptDialogOpen(true)}
+            className="border-slate-700 text-slate-300 hover:text-white"
+          >
+            <Wand2 className="w-4 h-4 mr-2" />
+            From Script
+          </Button>
+          
           <Link href={`/presentations/${presentationId}/present`}>
-            <Button>
+            <Button className="bg-blue-600 hover:bg-blue-700">
               <Play className="w-4 h-4 mr-2" />
               Present
             </Button>
@@ -252,59 +375,53 @@ export default function PresentationEditorPage() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Slide Sidebar */}
-        <div className="w-64 bg-white border-r overflow-y-auto p-4 space-y-2">
+        <div className="w-56 bg-slate-900 border-r border-slate-800 overflow-y-auto p-3 space-y-2">
           {slides.map((slide, index) => (
             <div
               key={slide.id}
               className={cn(
                 'group relative rounded-lg border-2 cursor-pointer transition-all',
                 selectedSlideIndex === index
-                  ? 'border-blue-500 shadow-sm'
-                  : 'border-gray-200 hover:border-gray-300'
+                  ? 'border-blue-500 shadow-lg shadow-blue-500/20'
+                  : 'border-slate-700 hover:border-slate-600'
               )}
               onClick={() => setSelectedSlideIndex(index)}
             >
-              <div className="aspect-video bg-white rounded-md overflow-hidden p-2">
-                <SlidePreview slide={slide} />
+              <div className="aspect-video bg-slate-950 rounded-md overflow-hidden">
+                <div className="w-full h-full scale-[0.2] origin-top-left" style={{ width: '500%', height: '500%' }}>
+                  <SlideRenderer code={slide.code} />
+                </div>
               </div>
-              <div className="absolute top-1 left-1 bg-black/50 text-white text-xs px-1.5 py-0.5 rounded">
+              <div className="absolute top-1 left-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded font-mono">
                 {index + 1}
               </div>
               <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="secondary" size="icon" className="h-6 w-6">
+                    <Button variant="secondary" size="icon" className="h-6 w-6 bg-slate-800">
                       <MoreVertical className="w-3 h-3" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
+                  <DropdownMenuContent align="end" className="bg-slate-800 border-slate-700">
                     <DropdownMenuItem
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        moveSlide(index, 'up')
-                      }}
+                      onClick={(e) => { e.stopPropagation(); moveSlide(index, 'up') }}
                       disabled={index === 0}
                     >
                       <ChevronUp className="w-4 h-4 mr-2" />
                       Move up
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        moveSlide(index, 'down')
-                      }}
+                      onClick={(e) => { e.stopPropagation(); moveSlide(index, 'down') }}
                       disabled={index === slides.length - 1}
                     >
                       <ChevronDown className="w-4 h-4 mr-2" />
                       Move down
                     </DropdownMenuItem>
+                    <DropdownMenuSeparator className="bg-slate-700" />
                     <DropdownMenuItem
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        deleteSlide(index)
-                      }}
+                      onClick={(e) => { e.stopPropagation(); deleteSlide(index) }}
                       disabled={slides.length <= 1}
-                      className="text-red-600"
+                      className="text-red-400 focus:text-red-400"
                     >
                       <Trash2 className="w-4 h-4 mr-2" />
                       Delete
@@ -315,422 +432,157 @@ export default function PresentationEditorPage() {
             </div>
           ))}
 
-          {/* Add Slide Button */}
+          {/* Add Slide */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="w-full">
+              <Button variant="outline" className="w-full border-slate-700 text-slate-400 hover:text-white">
                 <Plus className="w-4 h-4 mr-2" />
                 Add Slide
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="center" className="w-48">
-              {TEMPLATES.map((template) => {
-                const Icon = template.icon
-                return (
-                  <DropdownMenuItem key={template.id} onClick={() => addSlide(template.id)}>
-                    <Icon className="w-4 h-4 mr-2" />
-                    {template.label}
-                  </DropdownMenuItem>
-                )
-              })}
+            <DropdownMenuContent align="center" className="w-48 bg-slate-800 border-slate-700">
+              <DropdownMenuItem onClick={() => addSlide()}>
+                <FileText className="w-4 h-4 mr-2" />
+                Blank Slide
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="bg-slate-700" />
+              {BRAND_STYLES.map((style) => (
+                <DropdownMenuItem key={style.id} onClick={() => addSlide(style.id)}>
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  {style.label}
+                </DropdownMenuItem>
+              ))}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
 
-        {/* Main Editor + Properties Panel */}
+        {/* Main Editor Area */}
         <div className="flex-1 flex overflow-hidden">
-          {/* Canvas Area */}
-          <div className="flex-1 flex items-center justify-center p-8 overflow-auto bg-gray-100">
-            <div className="w-full max-w-4xl">
-              <div className="aspect-video bg-white rounded-lg shadow-lg overflow-hidden">
-                {selectedSlide && <SlideCanvas slide={selectedSlide} />}
+          {/* Preview Panel */}
+          {(viewMode === 'preview' || viewMode === 'split') && (
+            <div className={cn(
+              'flex items-center justify-center p-8 bg-slate-950',
+              viewMode === 'split' ? 'w-1/2' : 'flex-1'
+            )}>
+              <div className="w-full max-w-4xl">
+                <div className="aspect-video rounded-lg shadow-2xl overflow-hidden ring-1 ring-slate-800">
+                  {selectedSlide && <SlideRenderer code={selectedSlide.code} />}
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Properties Panel - Right Side */}
-          {selectedSlide && (
-            <div className="w-80 bg-white border-l overflow-y-auto p-4">
-              <h3 className="font-semibold text-sm mb-4">Slide Properties</h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <Label className="text-xs text-gray-500 mb-1">Template</Label>
-                  <Select
-                    value={selectedSlide.template}
-                    onValueChange={(value) => {
-                      updateSlide({
-                        template: value,
-                        content: getDefaultContent(value),
-                      })
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TEMPLATES.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>
-                          {t.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <SlideEditor
-                  slide={selectedSlide}
-                  onContentChange={updateContent}
+          {/* Code Editor Panel */}
+          {(viewMode === 'code' || viewMode === 'split') && selectedSlide && (
+            <div className={cn(
+              'bg-slate-900 border-l border-slate-800 flex flex-col',
+              viewMode === 'split' ? 'w-1/2' : 'flex-1'
+            )}>
+              <div className="px-4 py-2 border-b border-slate-800 flex items-center justify-between">
+                <span className="text-sm text-slate-400 font-mono">Slide {selectedSlideIndex + 1} — JSX + Tailwind + Motion</span>
+              </div>
+              <div className="flex-1">
+                <MonacoEditor
+                  height="100%"
+                  language="javascript"
+                  theme="vs-dark"
+                  value={selectedSlide.code}
+                  onChange={(value) => value && updateSlideCode(value)}
+                  options={{
+                    minimap: { enabled: false },
+                    fontSize: 13,
+                    lineNumbers: 'on',
+                    scrollBeyondLastLine: false,
+                    wordWrap: 'on',
+                    tabSize: 2,
+                    padding: { top: 16 },
+                    fontFamily: 'JetBrains Mono, Menlo, Monaco, monospace',
+                  }}
                 />
               </div>
             </div>
           )}
         </div>
       </div>
-    </div>
-  )
-}
 
-function Label({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn('text-sm font-medium', className)}>{children}</div>
-}
-
-function SlidePreview({ slide }: { slide: Slide }) {
-  const content = slide.content as Record<string, unknown>
-
-  return (
-    <div className="w-full h-full flex flex-col items-center justify-center text-center p-1 overflow-hidden">
-      {slide.template === 'title' && (
-        <>
-          <div className="text-[8px] font-bold truncate w-full">{String(content.title || '')}</div>
-          {Boolean(content.subtitle) && (
-            <div className="text-[6px] text-gray-500 truncate w-full">{String(content.subtitle)}</div>
-          )}
-        </>
-      )}
-      {slide.template === 'content' && (
-        <>
-          <div className="text-[7px] font-bold truncate w-full mb-0.5">{String(content.title || '')}</div>
-          <div className="text-[5px] text-gray-500 truncate w-full">{String(content.body || '')}</div>
-        </>
-      )}
-      {slide.template === 'two-column' && (
-        <>
-          <div className="text-[7px] font-bold truncate w-full mb-0.5">{String(content.title || '')}</div>
-          <div className="flex gap-1 w-full">
-            <div className="flex-1 bg-gray-100 rounded h-4" />
-            <div className="flex-1 bg-gray-100 rounded h-4" />
-          </div>
-        </>
-      )}
-      {slide.template === 'bullets' && (
-        <>
-          <div className="text-[7px] font-bold truncate w-full mb-0.5">{String(content.title || '')}</div>
-          <div className="space-y-0.5 w-full">
-            {((content.bullets as string[]) || []).slice(0, 3).map((_, i) => (
-              <div key={i} className="h-1 bg-gray-200 rounded w-full" />
-            ))}
-          </div>
-        </>
-      )}
-      {slide.template === 'quote' && (
-        <>
-          <div className="text-[6px] italic truncate w-full">&ldquo;{String(content.quote || '')}&rdquo;</div>
-        </>
-      )}
-      {slide.template === 'image' && (
-        <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-          <ImageIcon className="w-3 h-3 text-gray-300" />
-        </div>
-      )}
-    </div>
-  )
-}
-
-function SlideCanvas({ slide }: { slide: Slide }) {
-  const content = slide.content as Record<string, unknown>
-
-  const baseStyles = 'w-full h-full flex flex-col p-12'
-
-  switch (slide.template) {
-    case 'title':
-      return (
-        <div className={cn(baseStyles, 'items-center justify-center text-center')}>
-          <h1 className="text-5xl font-bold mb-4">{String(content.title || 'Title')}</h1>
-          {Boolean(content.subtitle) && (
-            <p className="text-2xl text-gray-500">{String(content.subtitle)}</p>
-          )}
-        </div>
-      )
-
-    case 'content':
-      return (
-        <div className={baseStyles}>
-          <h2 className="text-3xl font-bold mb-6">{String(content.title || 'Title')}</h2>
-          <p className="text-xl text-gray-700 leading-relaxed whitespace-pre-wrap">
-            {String(content.body || '')}
-          </p>
-        </div>
-      )
-
-    case 'two-column':
-      return (
-        <div className={baseStyles}>
-          <h2 className="text-3xl font-bold mb-6">{String(content.title || 'Title')}</h2>
-          <div className="flex-1 grid grid-cols-2 gap-8">
-            <div className="text-lg text-gray-700 whitespace-pre-wrap">
-              {String(content.left || '')}
-            </div>
-            <div className="text-lg text-gray-700 whitespace-pre-wrap">
-              {String(content.right || '')}
-            </div>
-          </div>
-        </div>
-      )
-
-    case 'bullets':
-      return (
-        <div className={baseStyles}>
-          <h2 className="text-3xl font-bold mb-6">{String(content.title || 'Title')}</h2>
-          <ul className="space-y-4">
-            {((content.bullets as string[]) || []).map((bullet, i) => (
-              <li key={i} className="text-xl text-gray-700 flex items-start gap-3">
-                <span className="w-2 h-2 rounded-full bg-blue-500 mt-2.5 flex-shrink-0" />
-                {bullet}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )
-
-    case 'quote':
-      return (
-        <div className={cn(baseStyles, 'items-center justify-center text-center')}>
-          <blockquote className="text-3xl italic text-gray-700 max-w-3xl">
-            &ldquo;{String(content.quote || '')}&rdquo;
-          </blockquote>
-          {Boolean(content.author) && (
-            <p className="text-xl text-gray-500 mt-6">— {String(content.author)}</p>
-          )}
-        </div>
-      )
-
-    case 'image':
-      return (
-        <div className={cn(baseStyles, 'items-center justify-center')}>
-          {content.imageUrl ? (
-            <img
-              src={String(content.imageUrl)}
-              alt=""
-              className="max-h-[70%] max-w-full object-contain rounded-lg"
-            />
-          ) : (
-            <div className="w-64 h-40 bg-gray-100 rounded-lg flex items-center justify-center">
-              <ImageIcon className="w-12 h-12 text-gray-300" />
-            </div>
-          )}
-          {Boolean(content.caption) && (
-            <p className="text-lg text-gray-500 mt-4">{String(content.caption)}</p>
-          )}
-        </div>
-      )
-
-    default:
-      return (
-        <div className={cn(baseStyles, 'items-center justify-center')}>
-          <p className="text-gray-400">Unknown template</p>
-        </div>
-      )
-  }
-}
-
-function SlideEditor({
-  slide,
-  onContentChange,
-}: {
-  slide: Slide
-  onContentChange: (key: string, value: unknown) => void
-}) {
-  const content = slide.content as Record<string, unknown>
-
-  switch (slide.template) {
-    case 'title':
-      return (
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <Label className="mb-1">Title</Label>
-            <Input
-              value={String(content.title || '')}
-              onChange={(e) => onContentChange('title', e.target.value)}
-              placeholder="Slide title"
-            />
-          </div>
-          <div>
-            <Label className="mb-1">Subtitle</Label>
-            <Input
-              value={String(content.subtitle || '')}
-              onChange={(e) => onContentChange('subtitle', e.target.value)}
-              placeholder="Optional subtitle"
-            />
-          </div>
-        </div>
-      )
-
-    case 'content':
-      return (
-        <div className="grid gap-4">
-          <div>
-            <Label className="mb-1">Title</Label>
-            <Input
-              value={String(content.title || '')}
-              onChange={(e) => onContentChange('title', e.target.value)}
-              placeholder="Slide title"
-            />
-          </div>
-          <div>
-            <Label className="mb-1">Content</Label>
-            <Textarea
-              value={String(content.body || '')}
-              onChange={(e) => onContentChange('body', e.target.value)}
-              placeholder="Slide content..."
-              rows={4}
-            />
-          </div>
-        </div>
-      )
-
-    case 'two-column':
-      return (
-        <div className="grid gap-4">
-          <div>
-            <Label className="mb-1">Title</Label>
-            <Input
-              value={String(content.title || '')}
-              onChange={(e) => onContentChange('title', e.target.value)}
-              placeholder="Slide title"
-            />
-          </div>
-          <div className="grid md:grid-cols-2 gap-4">
+      {/* Script Generation Dialog */}
+      <Dialog open={scriptDialogOpen} onOpenChange={setScriptDialogOpen}>
+        <DialogContent className="sm:max-w-2xl bg-slate-900 border-slate-700 text-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wand2 className="w-5 h-5 text-blue-400" />
+              Generate from Script
+            </DialogTitle>
+            <DialogDescription className="text-slate-400">
+              Paste your script or outline. AI will generate React slides with animations.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
             <div>
-              <Label className="mb-1">Left Column</Label>
+              <Label className="text-slate-300">Brand Style</Label>
+              <Select value={brandStyle} onValueChange={(v) => setBrandStyle(v as BrandStyle)}>
+                <SelectTrigger className="mt-1 bg-slate-800 border-slate-700">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-800 border-slate-700">
+                  {BRAND_STYLES.map((style) => (
+                    <SelectItem key={style.id} value={style.id}>
+                      <div>
+                        <div className="font-medium">{style.label}</div>
+                        <div className="text-xs text-slate-400">{style.description}</div>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div>
+              <Label className="text-slate-300">Script / Outline</Label>
               <Textarea
-                value={String(content.left || '')}
-                onChange={(e) => onContentChange('left', e.target.value)}
-                placeholder="Left column content..."
-                rows={3}
+                value={script}
+                onChange={(e) => setScript(e.target.value)}
+                placeholder="Paste your presentation script here...
+
+Example:
+Slide 1: Introduction - Welcome to our company
+Slide 2: The Problem - Current market challenges
+Slide 3: Our Solution - How we solve it
+..."
+                className="mt-1 h-64 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
               />
             </div>
-            <div>
-              <Label className="mb-1">Right Column</Label>
-              <Textarea
-                value={String(content.right || '')}
-                onChange={(e) => onContentChange('right', e.target.value)}
-                placeholder="Right column content..."
-                rows={3}
-              />
-            </div>
-          </div>
-        </div>
-      )
-
-    case 'bullets':
-      const bullets = (content.bullets as string[]) || []
-      return (
-        <div className="grid gap-4">
-          <div>
-            <Label className="mb-1">Title</Label>
-            <Input
-              value={String(content.title || '')}
-              onChange={(e) => onContentChange('title', e.target.value)}
-              placeholder="Slide title"
-            />
-          </div>
-          <div>
-            <Label className="mb-1">Bullet Points</Label>
-            <div className="space-y-2">
-              {bullets.map((bullet, i) => (
-                <div key={i} className="flex gap-2">
-                  <Input
-                    value={bullet}
-                    onChange={(e) => {
-                      const newBullets = [...bullets]
-                      newBullets[i] = e.target.value
-                      onContentChange('bullets', newBullets)
-                    }}
-                    placeholder={`Point ${i + 1}`}
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => {
-                      const newBullets = bullets.filter((_, idx) => idx !== i)
-                      onContentChange('bullets', newBullets)
-                    }}
-                    disabled={bullets.length <= 1}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))}
+            
+            <div className="flex justify-end gap-2">
               <Button
                 variant="outline"
-                size="sm"
-                onClick={() => onContentChange('bullets', [...bullets, ''])}
+                onClick={() => setScriptDialogOpen(false)}
+                className="border-slate-700"
               >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Point
+                Cancel
+              </Button>
+              <Button
+                onClick={generateFromScript}
+                disabled={!script.trim() || generating}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {generating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Generate Slides
+                  </>
+                )}
               </Button>
             </div>
           </div>
-        </div>
-      )
-
-    case 'quote':
-      return (
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="md:col-span-2">
-            <Label className="mb-1">Quote</Label>
-            <Textarea
-              value={String(content.quote || '')}
-              onChange={(e) => onContentChange('quote', e.target.value)}
-              placeholder="Enter quote..."
-              rows={3}
-            />
-          </div>
-          <div>
-            <Label className="mb-1">Author</Label>
-            <Input
-              value={String(content.author || '')}
-              onChange={(e) => onContentChange('author', e.target.value)}
-              placeholder="Author name"
-            />
-          </div>
-        </div>
-      )
-
-    case 'image':
-      return (
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="md:col-span-2">
-            <Label className="mb-1">Image URL</Label>
-            <Input
-              value={String(content.imageUrl || '')}
-              onChange={(e) => onContentChange('imageUrl', e.target.value)}
-              placeholder="https://example.com/image.jpg"
-            />
-          </div>
-          <div>
-            <Label className="mb-1">Caption</Label>
-            <Input
-              value={String(content.caption || '')}
-              onChange={(e) => onContentChange('caption', e.target.value)}
-              placeholder="Image caption"
-            />
-          </div>
-        </div>
-      )
-
-    default:
-      return <p className="text-gray-500">No editor available for this template</p>
-  }
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
 }
