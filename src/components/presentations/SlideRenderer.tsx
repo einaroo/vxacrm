@@ -12,6 +12,8 @@ import SimpleMarquee from '@/components/fancy/blocks/simple-marquee'
 import Typewriter from '@/components/fancy/text/typewriter'
 import TextRotate from '@/components/fancy/text/text-rotate'
 import LetterSwap from '@/components/fancy/text/letter-swap-forward-anim'
+import GooeyFilter from '@/components/fancy/filter/gooey-svg-filter'
+import CssBox from '@/components/fancy/blocks/css-box'
 
 interface SlideRendererProps {
   code: string
@@ -34,6 +36,8 @@ function LiveSlide({ code }: { code: string }) {
     Typewriter,
     TextRotate,
     LetterSwap,
+    GooeyFilter,
+    CssBox,
     cn,
   }
 
