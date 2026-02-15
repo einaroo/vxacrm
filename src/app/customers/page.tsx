@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Plus, Trash2, DollarSign, Building, Mail, RefreshCw, Send, Link2 } from 'lucide-react'
+import { Plus, Trash2, DollarSign, Building, Mail, RefreshCw, Send, Link2, Linkedin, Briefcase } from 'lucide-react'
 import { EmailModal } from '@/components/email-modal'
 
 const COLUMNS = [
@@ -199,6 +199,18 @@ export default function CustomersPage() {
       <div className="flex items-center justify-between">
         <div className="font-medium text-sm">{customer.name}</div>
         <div className="flex items-center gap-1">
+          {customer.linkedin_url && (
+            <a
+              href={customer.linkedin_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="p-1.5 text-gray-400 hover:text-[#0A66C2] hover:bg-blue-50 rounded-md transition-colors"
+              title="LinkedIn profile"
+            >
+              <Linkedin className="w-3.5 h-3.5" />
+            </a>
+          )}
           <button
             onClick={(e) => copyBookingLink(customer, e)}
             className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-md transition-colors"
@@ -217,24 +229,42 @@ export default function CustomersPage() {
           )}
         </div>
       </div>
+      {customer.job_title && (
+        <div className="flex items-center gap-1 text-xs text-gray-500">
+          <Briefcase className="w-3 h-3" />
+          {customer.job_title}
+        </div>
+      )}
       {customer.company && (
         <div className="flex items-center gap-1 text-xs text-gray-500">
           <Building className="w-3 h-3" />
           {customer.company}
         </div>
       )}
-      {customer.email && (
+      {customer.email && customer.email !== 'source:waalaxy' && (
         <div className="flex items-center gap-1 text-xs text-gray-500">
           <Mail className="w-3 h-3" />
           {customer.email}
         </div>
       )}
-      {customer.mrr_value && (
-        <Badge variant="secondary" className="text-xs">
-          <DollarSign className="w-3 h-3 mr-1" />
-          {customer.mrr_value.toLocaleString()}/mo
-        </Badge>
-      )}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {customer.email === 'source:waalaxy' && (
+          <Badge className="text-xs bg-purple-100 text-purple-700 hover:bg-purple-200 border-purple-200">
+            Waalaxy
+          </Badge>
+        )}
+        {customer.mrr_value && (
+          <Badge variant="secondary" className="text-xs">
+            <DollarSign className="w-3 h-3 mr-1" />
+            {customer.mrr_value.toLocaleString()}/mo
+          </Badge>
+        )}
+        {customer.source && (
+          <Badge className="text-xs bg-purple-100 text-purple-700 hover:bg-purple-100 border-0">
+            {customer.source}
+          </Badge>
+        )}
+      </div>
     </div>
   )
 

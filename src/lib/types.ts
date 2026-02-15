@@ -5,6 +5,9 @@ export interface Customer {
   company: string
   mrr_value: number | null
   status: 'lead' | 'in-contact' | 'negotiating' | 'won' | 'lost'
+  source?: string | null
+  linkedin_url?: string | null
+  job_title?: string | null
   created_at: string
   updated_at: string
   user_id: string | null
