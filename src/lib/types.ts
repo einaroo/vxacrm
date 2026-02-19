@@ -74,3 +74,50 @@ export type ColumnConfig<T> = {
   color: string
   items: T[]
 }
+
+// Signals
+export type SignalCategory = 
+  | 'competitor-promo'
+  | 'competitor-partnership'
+  | 'competitor-product'
+  | 'audience-talking'
+  | 'performance-decay'
+  | 'performance-winner'
+  | 'trend-match'
+
+export interface Signal {
+  id: string
+  name: string
+  category: SignalCategory
+  description: string | null
+  is_active: boolean
+  // What to monitor
+  target_type: 'competitor' | 'audience' | 'own-content' | 'trend'
+  target_id: string | null  // e.g., competitor_id if tracking a competitor
+  target_name: string | null
+  // Monitoring config
+  frequency: 'realtime' | 'hourly' | 'daily' | 'weekly'
+  last_checked_at: string | null
+  // Results
+  last_triggered_at: string | null
+  trigger_count: number
+  created_at: string
+  updated_at: string
+  user_id: string | null
+}
+
+export interface SignalEvent {
+  id: string
+  signal_id: string
+  signal_name: string
+  category: SignalCategory
+  title: string
+  description: string | null
+  source_url: string | null
+  severity: 'low' | 'medium' | 'high'
+  is_read: boolean
+  is_actioned: boolean
+  // Optional: linked content suggestion
+  suggested_action: string | null
+  created_at: string
+}
